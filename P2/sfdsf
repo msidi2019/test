@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/3.4.2/gl-matrix-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
     <title>Ejercicio 5</title>
 </head>
 
@@ -19,42 +19,44 @@
     <b>Projection type</b>
     <input type="radio" name="projection" value="perspective" checked> Perspective
     <input type="radio" name="projection" value="orthographic"> Orthographic<br>
-    <b>Decoration</b>
-    <input type="radio" name="christmas" value="no" checked> No
-    <input type="radio" name="christmas" value="yes"> Yes<br>
 
-    <!-- Importación de las imágenes de textura -->
+    <!-- Agregar input para activar/desactivar la aplicación de textura de luz -->
+    <b>Apply Light Texture</b>
+    <input type="radio" name="applyLightTexture" value="yes"> Yes
+    <input type="radio" name="applyLightTexture" value="no" checked> No<br>
+
+    <!-- Importar imágenes de textura -->
     <img id="portalTexture" src="portal.jpg" style="display: none;">
     <img id="lightTexture" src="light.jpg" style="display: none;">
 
     <script id="shaderVs" type="x-shader/x-vertex">
         attribute vec4 a_Position;
         attribute vec3 a_Color;
-        attribute vec2 a_TexCoord;
+        attribute vec2 a_TexCoord; // Agregar atributo para coordenadas de textura
         uniform mat4 u_pMatrix;
         uniform mat4 u_vMatrix;
         uniform mat4 u_mvMatrix;
         varying highp vec4 v_Color;
-        varying vec2 v_TexCoord;
+        varying vec2 v_TexCoord; // Pasar coordenadas de textura al fragment shader
         void main(){
             gl_Position = u_pMatrix * u_vMatrix * u_mvMatrix * a_Position;
             v_Color = vec4(a_Color, 1.0);
-            v_TexCoord = a_TexCoord;
+            v_TexCoord = a_TexCoord; // Asignar coordenadas de textura
         }
     </script>
 
     <script id="shaderFs" type="x-shader/x-fragment">
         precision mediump float;
         varying highp vec4 v_Color;
-        varying vec2 v_TexCoord;
+        varying vec2 v_TexCoord; // Recibir coordenadas de textura desde el vertex shader
         uniform sampler2D u_Sampler;
-        uniform sampler2D u_LightSampler;
-        uniform bool u_ApplyLightTexture;
+        uniform sampler2D u_LightSampler; // Agregar sampler para textura de luz
+        uniform bool u_ApplyLightTexture; // Bandera para aplicar textura de luz
 
         void main() {
             vec4 color = texture2D(u_Sampler, v_TexCoord);
             if (u_ApplyLightTexture) {
-                color *= texture2D(u_LightSampler, v_TexCoord);
+                color *= texture2D(u_LightSampler, v_TexCoord); // Aplicar textura de luz si está activada
             }
             gl_FragColor = color * v_Color;
         }
@@ -66,8 +68,7 @@
             count = 0.0,
             ratio,
             z = 3,
-            projectionValue = document.querySelector('input[name="projection"]:checked').value,
-            applyLightTexture = false;
+            projectionValue = document.querySelector('input[name="projection"]:checked').value;
 
         function init(){
             // Get canvas object from the DOM and Init WebGL Context
@@ -104,67 +105,258 @@
             document.addEventListener('wheel', function (event) {
                 if (projectionValue == 'perspective'){
                     z = event.deltaY > 0 ? z - 1 : z + 1;
-                    if (z < 2){
-                        z = 2;
-                    }
-                    if (z > 30){
-                        z = 30;
-                    }
-                    initProjection(gl, canvas);
-                }
-            });
-
-            // Event listener for keyboard
-            document.addEventListener('keydown', function (event) {
-                var projectionChanged = false;
-                if (event.key == "ArrowLeft") {
-                    count -= 0.1;
-                    projectionChanged = true;
-                } else if (event.key == "ArrowRight") {
-                    count += 0.1;
-                    projectionChanged = true;
-                }
-
-                if (projectionChanged) {
-                    initProjection(gl, canvas);
                 }
             });
 
             // Start drawing
-            draw();
+            drawScene();
         }
 
-        function draw(){
+        function drawScene() {
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-            var primitive = document.querySelector('input[name="primitive"]:checked').value;
-            if (primitive == "triangles"){
-                gl.drawArrays(gl.TRIANGLES, 0, vertices.length/3);
-            }else if (primitive == "lines"){
-                gl.drawArrays(gl.LINE_LOOP, 0, vertices.length/3);
+            
+            projectionValue = document.querySelector('input[name="projection"]:checked').value,
+            u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
+            u_vMatrix = gl.getUniformLocation(gl.program, "u_vMatrix"),
+            ratio = canvas.width/canvas.height;
+            
+            switch (projectionValue) {
+                case "perspective":
+                    var pMatrix = mat4.perspective(mat4.create(), toRadian(60), ratio, 0.1, 100),
+                        vMatrix = mat4.lookAt(mat4.create(), [0, 0, z], [0, 0, 0], [0, 1, 0]);
+                    break;
+            
+                case "orthographic":
+                    var pMatrix = mat4.ortho(mat4.create(), -ratio, ratio, -1.0, 1.50, -1.0, 1.50),
+                        vMatrix = mat4.create();
+                    break;
+                default:
             }
 
-            var projection = document.querySelector('input[name="projection"]:checked').value;
-            if (projection != projectionValue){
-                projectionValue = projection;
-                initProjection(gl, canvas);
+            gl.uniformMatrix4fv(u_pMatrix, false, pMatrix);
+            gl.uniformMatrix4fv(u_vMatrix, false, vMatrix);
+
+            var rotationChecked = document.querySelector('input[name="rotation"]').checked,
+                primitiveValue = document.querySelector('input[name="primitive"]:checked').value,
+                mvMatrix = mat4.fromRotation(mat4.create(), count, [0, 1, 0]),
+                u_mvMatrix = gl.getUniformLocation(gl.program, "u_mvMatrix");
+
+            gl.uniformMatrix4fv(u_mvMatrix, false, mvMatrix);
+
+            var speed = parseInt(document.getElementById("speed").value);
+
+            if (rotationChecked){
+                count += 0.01 * speed;
             }
 
-            var rotation = document.querySelector('input[name="rotation"]').checked;
-            if (rotation){
-                var speed = document.getElementById("speed").value / 100;
-                count += speed;
-                if (count >= 360){
-                    count -= 360;
-                }
-                initProjection(gl, canvas);
+            switch (primitiveValue) {
+                case "triangles":
+                    // DRAW PRIMITIVE ELEMENTS FOR FIRST CUBE
+                    gl.drawElements(gl.TRIANGLES, 6 * 3, gl.UNSIGNED_SHORT, 0);
+                    // DRAW PRIMITIVE ELEMENTS FOR SECOND CUBE
+                    gl.drawElements(gl.TRIANGLES, 6 * 3, gl.UNSIGNED_SHORT, 6 * 3 * 2);
+                    // DRAW PRIMITIVE ELEMENTS FOR PYRAMID
+                    gl.drawElements(gl.TRIANGLES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2); // Se multiplicó por 2 para dibujar los 6 triángulos de la pirámide
+                    break;
+                case "lines":
+                    // DRAW LINES FOR FIRST CUBE
+                    gl.drawElements(gl.LINES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 0); // Multiplicado por 2 porque cada triángulo tiene 3 líneas
+                    // DRAW LINES FOR SECOND CUBE
+                    gl.drawElements(gl.LINES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2); // Multiplicado por 2 para dibujar las líneas de los dos cubos
+                    // DRAW LINES FOR PYRAMID
+                    gl.drawElements(gl.LINES, 6 * 3 * 2 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2 * 2); // Multiplicado por 2 para dibujar las líneas de la pirámide
+                    break;
+                default:
             }
 
-            // Aplicar o no la textura de luz según la opción seleccionada
-            var christmas = document.querySelector('input[name="christmas"]:checked').value;
-            applyLightTexture = christmas == "yes";
+            // CALL DRAWSCENE AGAIN IN THE NEXT BROWSER REPAINT
+            requestAnimationFrame(drawScene);
+        }
 
-            requestAnimationFrame(draw);
+        function initVertexShader(gl) {
+            // Vertexes, colors, and texture coordinates (X, Y, Z, R, G, B, S, T)
+            var vertexesAndColorsAndTexCoords = [
+                // CUBO 1 (IZQUIERDA)
+                // BACK - AZUL
+                -0.75, -0.50, -0.25, 0.0, 0.0, 1.0, 0.0, 0.0, // Vértice 0
+                -0.25, -0.50, -0.25, 0.0, 0.0, 1.0, 1.0, 0.0, // Vértice 1
+                -0.25, 0.50, -0.25, 0.0, 0.0, 1.0, 1.0, 1.0, // Vértice 2
+                -0.75, 0.50, -0.25, 0.0, 0.0, 1.0, 0.0, 1.0, // Vértice 3
+
+                // FRONT - ROJO
+                -0.75, -0.50, 0.25, 1.0, 0.0, 0.0, 0.0, 0.0, // Vértice 4
+                -0.25, -0.50, 0.25, 1.0, 0.0, 0.0, 1.0, 0.0, // Vértice 5
+                -0.25, 0.50, 0.25, 1.0, 0.0, 0.0, 1.0, 1.0, // Vértice 6
+                -0.75, 0.50, 0.25, 1.0, 0.0, 0.0, 0.0, 1.0, // Vértice 7
+
+                // LEFT - AMARILLO
+                -0.75, -0.50, -0.25, 1.0, 1.0, 0.0, 0.0, 0.0, // Vértice 8
+                -0.75, 0.50, -0.25, 1.0, 1.0, 0.0, 1.0, 0.0, // Vértice 9
+                -0.75, 0.50, 0.25, 1.0, 1.0, 0.0, 1.0, 1.0, // Vértice 10
+                -0.75, -0.50, 0.25, 1.0, 1.0, 0.0, 0.0, 1.0, // Vértice 11
+
+                // RIGHT - VERDE
+                -0.25, -0.50, -0.25, 0.0, 1.0, 0.0, 0.0, 0.0, // Vértice 12
+                -0.25, 0.50, -0.25, 0.0, 1.0, 0.0, 1.0, 0.0, // Vértice 13
+                -0.25, 0.50, 0.25, 0.0, 1.0, 0.0, 1.0, 1.0, // Vértice 14
+                -0.25, -0.50, 0.25, 0.0, 1.0, 0.0, 0.0, 1.0, // Vértice 15
+
+                // BOTTOM - TURQUESA
+                -0.75, -0.50, -0.25, 0.0, 1.0, 1.0, 0.0, 0.0, // Vértice 16
+                -0.75, -0.50, 0.25, 0.0, 1.0, 1.0, 1.0, 0.0, // Vértice 17
+                -0.25, -0.50, 0.25, 0.0, 1.0, 1.0, 1.0, 1.0, // Vértice 18
+                -0.25, -0.50, -0.25, 0.0, 1.0, 1.0, 0.0, 1.0, // Vértice 19
+
+                // CUBO 2 (DERECHA)
+                // BACK - AZUL
+                0.25, -0.50, -0.25, 0.0, 0.0, 1.0, 0.0, 0.0, // Vértice 20
+                0.75, -0.50, -0.25, 0.0, 0.0, 1.0, 1.0, 0.0, // Vértice 21
+                0.75, 0.50, -0.25, 0.0, 0.0, 1.0, 1.0, 1.0, // Vértice 22
+                0.25, 0.50, -0.25, 0.0, 0.0, 1.0, 0.0, 1.0, // Vértice 23
+
+                // FRONT - ROJO
+                0.25, -0.50, 0.25, 1.0, 0.0, 0.0, 0.0, 0.0, // Vértice 24
+                0.75, -0.50, 0.25, 1.0, 0.0, 0.0, 1.0, 0.0, // Vértice 25
+                0.75, 0.50, 0.25, 1.0, 0.0, 0.0, 1.0, 1.0, // Vértice 26
+                0.25, 0.50, 0.25, 1.0, 0.0, 0.0, 0.0, 1.0, // Vértice 27
+
+                // LEFT - AMARILLO
+                0.25, -0.50, -0.25, 1.0, 1.0, 0.0, 0.0, 0.0, // Vértice 28
+                0.25, 0.50, -0.25, 1.0, 1.0, 0.0, 1.0, 0.0, // Vértice 29
+                0.25, 0.50, 0.25, 1.0, 1.0, 0.0, 1.0, 1.0, // Vértice 30
+                0.25, -0.50, 0.25, 1.0, 1.0, 0.0, 0.0, 1.0, // Vértice 31
+
+                // RIGHT - VERDE
+                0.75, -0.50, -0.25, 0.0, 1.0, 0.0, 0.0, 0.0, // Vértice 32
+                0.75, 0.50, -0.25, 0.0, 1.0, 0.0, 1.0, 0.0, // Vértice 33
+                0.75, 0.50, 0.25, 0.0, 1.0, 0.0, 1.0, 1.0, // Vértice 34
+                0.75, -0.50, 0.25, 0.0, 1.0, 0.0, 0.0, 1.0, // Vértice 35
+
+                // BOTTOM - TURQUESA
+                0.25, -0.50, -0.25, 0.0, 1.0, 1.0, 0.0, 0.0, // Vértice 36
+                0.25, -0.50, 0.25, 0.0, 1.0, 1.0, 1.0, 0.0, // Vértice 37
+                0.75, -0.50, 0.25, 0.0, 1.0, 1.0, 1.0, 1.0, // Vértice 38
+                0.75, -0.50, -0.25, 0.0, 1.0, 1.0, 0.0, 1.0, // Vértice 39
+
+                // PIRÁMIDE
+                // Vértice superior de la pirámide
+                0.00, 1.00, 0.00, 1.0, 0.0, 0.0, 0.5, 1.0, // Vértice 40
+                // Base de la pirámide
+                // (v1) (Amarillo)
+                -0.75, 0.50, -0.75, 1.0, 1.0, 0.0, 0.0, 0.0, // Vértice 41 (Amarillo)
+                // (v2) (Azul)
+                -0.75, 0.50, 0.75, 0.0, 0.0, 1.0, 1.0, 0.0, // Vértice 42 (Azul)
+                // (v3) (Verde)
+                0.75, 0.50, 0.75, 0.0, 1.0, 0.0, 1.0, 1.0, // Vértice 43 (Verde)
+                // (v4) (Turquesa)
+                0.75, 0.50, -0.75, 0.0, 1.0, 1.0, 0.0, 1.0 // Vértice 44 (Turquesa)
+            ];
+
+            // Indexes (for drawing squares using triangles)
+            var indexes = [
+                // CUBO 1
+                0, 1, 2,    // Triángulo #1
+                0, 2, 3,    // Triángulo #2
+                4, 5, 6,    // Triángulo #3
+                4, 6, 7,    // Triángulo #4
+                8, 9, 10,   // Triángulo #5
+                8, 10, 11,  // Triángulo #6
+                12, 13, 14, // Triángulo #7
+                12, 14, 15, // Triángulo #8
+                16, 17, 18, // Triángulo #9
+                16, 18, 19, // Triángulo #10
+                // CUBO 2
+                20, 21, 22,    // Triángulo #11
+                20, 22, 23,    // Triángulo #12
+                24, 25, 26,    // Triángulo #13
+                24, 26, 27,    // Triángulo #14
+                28, 29, 30,    // Triángulo #15
+                28, 30, 31,    // Triángulo #16
+                32, 33, 34,    // Triángulo #17
+                32, 34, 35,    // Triángulo #18
+                36, 37, 38,    // Triángulo #19
+                36, 38, 39,    // Triángulo #20
+                // PIRÁMIDE
+                40, 41, 42,    // Triángulo #21 (Base: v1, v2, v3)
+                40, 42, 43,    // Triángulo #22 (Base: v1, v3, v4)
+                40, 43, 44,    // Triángulo #23 (Base: v1, v4, v1)
+                40, 41, 44     // Triángulo #24 (Lado 1: v1, v2, v4)
+            ];
+
+            // Crear el búfer de vértices
+            var verticesBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, verticesBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesAndColorsAndTexCoords), gl.STATIC_DRAW);
+
+            // Element buffer object
+            var indexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes), gl.STATIC_DRAW);
+
+            // Atributos
+            var a_Position = gl.getAttribLocation(gl.program, 'a_Position');
+            var a_Color = gl.getAttribLocation(gl.program, 'a_Color');
+            var a_TexCoord = gl.getAttribLocation(gl.program, 'a_TexCoord'); // Obtener la ubicación del atributo de coordenadas de textura
+
+            // Asignar el búfer a los atributos
+            gl.vertexAttribPointer(a_Position, 3, gl.FLOAT, false, 32, 0);
+            gl.vertexAttribPointer(a_Color, 3, gl.FLOAT, false, 32, 12);
+            gl.vertexAttribPointer(a_TexCoord, 2, gl.FLOAT, false, 32, 24); // Asignar el búfer para las coordenadas de textura
+            gl.enableVertexAttribArray(a_Position);
+            gl.enableVertexAttribArray(a_Color);
+            gl.enableVertexAttribArray(a_TexCoord); // Habilitar el atributo de coordenadas de textura
+        }
+
+        function initProjection(gl, canvas) {
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            var u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix");
+            var pMatrix = mat4.perspective(mat4.create(), toRadian(60), canvas.width/canvas.height, 0.1, 100);
+            gl.uniformMatrix4fv(u_pMatrix, false, pMatrix);
+        }
+
+        function toRadian(degree){
+            return degree * Math.PI / 180;
+        }
+
+        function initShaders(gl, vsSource, fsSource){
+            // Create shaders
+            var vertexShader = gl.createShader(gl.VERTEX_SHADER),
+                fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+            
+            // Assign sources to the shaders
+            gl.shaderSource(vertexShader, vsSource);
+            gl.shaderSource(fragmentShader, fsSource);
+
+            // Compile vertex shader
+            gl.compileShader(vertexShader);
+            if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)){
+                console.error("ERROR COMPILING VERTEX SHADER", gl.getShaderInfoLog(vertexShader));
+                return false;
+            }
+
+            // Compile fragment shader
+            gl.compileShader(fragmentShader);
+            if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)){
+                console.error("ERROR COMPILING FRAGMENT SHADER", gl.getShaderInfoLog(fragmentShader));
+                return false;
+            }
+
+            // Create program
+            gl.program = gl.createProgram();
+            gl.attachShader(gl.program, vertexShader);
+            gl.attachShader(gl.program, fragmentShader);
+
+            // Link program
+            gl.linkProgram(gl.program);
+            if (!gl.getProgramParameter(gl.program, gl.LINK_STATUS)){
+                console.error("ERROR LINKING PROGRAM", gl.getProgramInfoLog(gl.program));
+                return false;
+            }
+
+            // Use program
+            gl.useProgram(gl.program);
+            
+            return true;
         }
     </script>
 </body>
