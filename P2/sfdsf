@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/3.4.2/gl-matrix-min.js"></script>
+    <title>Ejercicio 5</title>
+</head>
+
+<body onload="init()">
+    <canvas id="myCanvas" width="640" height="480"></canvas><br>
+    <b>Rotation</b>
+    <input type="checkbox" name="rotation" checked>
+    <input type="range" id="speed" min="1" max="3" value="1" step="1"> Speed<br>
+    <b>WebGL primitive</b>
+    <input type="radio" name="primitive" value="triangles" checked> Triangles
+    <input type="radio" name="primitive" value="lines"> Lines<br>
+    <b>Projection type</b>
+    <input type="radio" name="projection" value="perspective" checked> Perspective
+    <input type="radio" name="projection" value="orthographic"> Orthographic<br>
+    <b>Decoration</b>
+    <input type="radio" name="christmas" value="no" checked> No
+    <input type="radio" name="christmas" value="yes"> Yes<br>
+
+    <!-- Importación de las imágenes de textura -->
+    <img id="portalTexture" src="portal.jpg" style="display: none;">
+    <img id="lightTexture" src="light.jpg" style="display: none;">
+
+    <script id="shaderVs" type="x-shader/x-vertex">
+        attribute vec4 a_Position;
+        attribute vec3 a_Color;
+        attribute vec2 a_TexCoord;
+        uniform mat4 u_pMatrix;
+        uniform mat4 u_vMatrix;
+        uniform mat4 u_mvMatrix;
+        varying highp vec4 v_Color;
+        varying vec2 v_TexCoord;
+        void main(){
+            gl_Position = u_pMatrix * u_vMatrix * u_mvMatrix * a_Position;
+            v_Color = vec4(a_Color, 1.0);
+            v_TexCoord = a_TexCoord;
+        }
+    </script>
+
+    <script id="shaderFs" type="x-shader/x-fragment">
+        precision mediump float;
+        varying highp vec4 v_Color;
+        varying vec2 v_TexCoord;
+        uniform sampler2D u_Sampler;
+        uniform sampler2D u_LightSampler;
+        uniform bool u_ApplyLightTexture;
+
+        void main() {
+            vec4 color = texture2D(u_Sampler, v_TexCoord);
+            if (u_ApplyLightTexture) {
+                color *= texture2D(u_LightSampler, v_TexCoord);
+            }
+            gl_FragColor = color * v_Color;
+        }
+    </script>
+
+    <script>
+        var gl,
+            canvas,
+            count = 0.0,
+            ratio,
+            z = 3,
+            projectionValue = document.querySelector('input[name="projection"]:checked').value,
+            applyLightTexture = false;
+
+        function init(){
+            // Get canvas object from the DOM and Init WebGL Context
+            canvas = document.getElementById("myCanvas");
+            gl = canvas.getContext("webgl");
+
+            if (!gl) {
+                console.log("FAILED TO GET THE RENDERING CONTEXT FOR WEBGL.");
+                return;
+            }
+
+            // Init Shaders 
+            var vs = document.getElementById('shaderVs').innerHTML,
+                fs = document.getElementById('shaderFs').innerHTML;
+
+            if (!initShaders(gl, vs, fs)){
+                console.log("FAILED TO INITIALIZE SHADERS.");
+                return;
+            }
+
+            // Init vertex shader
+            initVertexShader(gl);
+
+            // Init projection matrix
+            initProjection(gl, canvas);
+
+            // Set clear canvas color
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+            // Hidden surface removal
+            gl.enable(gl.DEPTH_TEST);
+
+            // Event listener for mouse wheel
+            document.addEventListener('wheel', function (event) {
+                if (projectionValue == 'perspective'){
+                    z = event.deltaY > 0 ? z - 1 : z + 1;
+                    if (z < 2){
+                        z = 2;
+                    }
+                    if (z > 30){
+                        z = 30;
+                    }
+                    initProjection(gl, canvas);
+                }
+            });
+
+            // Event listener for keyboard
+            document.addEventListener('keydown', function (event) {
+                var projectionChanged = false;
+                if (event.key == "ArrowLeft") {
+                    count -= 0.1;
+                    projectionChanged = true;
+                } else if (event.key == "ArrowRight") {
+                    count += 0.1;
+                    projectionChanged = true;
+                }
+
+                if (projectionChanged) {
+                    initProjection(gl, canvas);
+                }
+            });
+
+            // Start drawing
+            draw();
+        }
+
+        function draw(){
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            var primitive = document.querySelector('input[name="primitive"]:checked').value;
+            if (primitive == "triangles"){
+                gl.drawArrays(gl.TRIANGLES, 0, vertices.length/3);
+            }else if (primitive == "lines"){
+                gl.drawArrays(gl.LINE_LOOP, 0, vertices.length/3);
+            }
+
+            var projection = document.querySelector('input[name="projection"]:checked').value;
+            if (projection != projectionValue){
+                projectionValue = projection;
+                initProjection(gl, canvas);
+            }
+
+            var rotation = document.querySelector('input[name="rotation"]').checked;
+            if (rotation){
+                var speed = document.getElementById("speed").value / 100;
+                count += speed;
+                if (count >= 360){
+                    count -= 360;
+                }
+                initProjection(gl, canvas);
+            }
+
+            // Aplicar o no la textura de luz según la opción seleccionada
+            var christmas = document.querySelector('input[name="christmas"]:checked').value;
+            applyLightTexture = christmas == "yes";
+
+            requestAnimationFrame(draw);
+        }
+    </script>
+</body>
+</html>
