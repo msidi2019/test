@@ -5,11 +5,11 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
-    <title>EJERCICIO EVALUABLE 5</title>
+    <title>Ejercicio 5</title>
 </head>
 
 <body onload="init()">
-    <canvas id="myCanvas" width="640" height="480"></canvas>
+    <canvas id="myCanvas" width="640" height="480"></canvas><br>
     <br>
     <b>Step:</b>
     <input type="text" value="0.1" id="step">
@@ -28,94 +28,94 @@
     <input type="radio" name="daylight" value="night">Night<br>
 </body>
 
-<script id="shaderVs" type="x-shader/x-vertex">
-    attribute vec4 a_Position;
-    attribute vec2 a_TexCoord;
-    varying vec2 v_TexCoord;
-    uniform mat4 u_pMatrix;
-    uniform mat4 u_vMatrix;
-    uniform mat4 u_mvMatrix;
+    <script id="shaderVs" type="x-shader/x-vertex">
+      attribute vec4 a_Position;
+      attribute vec2 a_TexCoord;
+      varying vec2 v_TexCoord;
+      uniform mat4 u_pMatrix;
+      uniform mat4 u_vMatrix;
+      uniform mat4 u_mvMatrix;
+  
+      void main(){
+          gl_Position = u_pMatrix * u_vMatrix * u_mvMatrix * a_Position;
+          v_TexCoord = a_TexCoord;
+      }
+    </script>
 
-    void main(){
-        gl_Position = u_pMatrix * u_vMatrix * u_mvMatrix * a_Position;
-        v_TexCoord = a_TexCoord;
-    }
-</script>
-
-<script id="shaderFs" type="x-shader/x-fragment">
-    precision mediump float;
-    uniform sampler2D u_Sampler0;
-    uniform sampler2D u_Sampler1;
-    uniform float u_filter;
-    varying vec2 v_TexCoord;
-    uniform float u_Filter;
-    void main(void) {
-        vec4 color0 = texture2D(u_Sampler0, v_TexCoord);
-        vec4 color1 = texture2D(u_Sampler1, v_TexCoord);
-        
-        if (u_Filter == 0.0){
-            gl_FragColor = color0 * color1;
-        }else{
-            gl_FragColor = color0;
+    <script id="shaderFs" type="x-shader/x-fragment">
+        varying highp vec4 v_Color;
+        void main(){
+            gl_FragColor = v_Color;
         }
-    }
-</script>
+    </script>
 
-<script>
-    var gl,
-        canvas,
-        count = 0.0,
-        ratio,
-        z = 3,
-        axisY = 0.0; 
+    <script id="shaderFs" type="x-shader/x-fragment">
+      precision mediump float;
+      uniform sampler2D u_Sampler0;
+      uniform sampler2D u_Sampler1;
+      uniform float u_filter;
+      varying vec2 v_TexCoord;
+      uniform float u_Filter;
+      void main(void) {
+          vec4 color0 = texture2D(u_Sampler0, v_TexCoord);
+          vec4 color1 = texture2D(u_Sampler1, v_TexCoord);
+          
+          if (u_Filter == 0.0){
+              gl_FragColor = color0 * color1;
+          }else{
+              gl_FragColor = color0;
+          }
+      }
+  </script>
 
-    function init(){
-        
-        // Get canvas object from the DOM and Init WebGL Context
-        canvas = document.getElementById("myCanvas");
-        gl = canvas.getContext("webgl");
+    <script>
+        var gl,
+            canvas,
+            count = 0.0,
+            ratio,
+            z = 3,
+            axisY = 0.0;
+            projectionValue = document.querySelector('input[name="projection"]:checked').value;
 
-        if (!gl) {
-        console.log("FAILED TO GET THE RENDERING CONTEXT FOR WEBGL.");
-        return;
-        }
+        function init(){
+            
+            // Get canvas object from the DOM and Init WebGL Context
+            canvas = document.getElementById("myCanvas");
+            gl = canvas.getContext("webgl");
 
-        // Init Shaders 
-        var vs = document.getElementById('shaderVs').innerHTML,
-            fs = document.getElementById('shaderFs').innerHTML;
-
-        if (!initShaders(gl, vs, fs)){
-        console.log("FAILED TO INITIALIZE SHADERS.");
-        return;
-        }
-
-        initShaders(gl, vs, fs);
-
-        // Init vertex shader
-        initVertexShader(gl);
-
-        // Init projection matrix
-        initProjection(gl, canvas);
-
-        // Set clear canvas color
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
-
-        // Hidden surface removal
-        gl.enable(gl.DEPTH_TEST);
-
-        // Init textures
-        initTexturesAndDraw(gl);
-
-        // Event listener for mouse wheel
-        document.addEventListener('wheel', function (event) {
-            projectionValue
-            if (projectionValue == 'orthographic'){
-                z = event.wheelDelta > 0 ? z + 0 : z - 0;
-            }else if (projectionValue == 'perspective'){
-                z = event.wheelDelta > 0 ? z + 1 : z - 1;
+            if (!gl) {
+            console.log("FAILED TO GET THE RENDERING CONTEXT FOR WEBGL.");
+            return;
             }
-        });
 
+            // Init Shaders 
+            var vs = document.getElementById('shaderVs').innerHTML,
+                fs = document.getElementById('shaderFs').innerHTML;
+
+            if (!initShaders(gl, vs, fs)){
+            console.log("FAILED TO INITIALIZE SHADERS.");
+            return;
+            }
+
+            // Init vertex shader
+            initVertexShader(gl);
+
+            // Init projection matrix
+            initProjection(gl, canvas);
+
+            // Set clear canvas color
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+            // Hidden surface removal
+            gl.enable(gl.DEPTH_TEST);
+
+            // Event listener for mouse wheel
+            document.addEventListener('wheel', function (event) {
+                if (projectionValue == 'perspective'){
+                    z = event.deltaY > 0 ? z - 1 : z + 1;
+                }
+            });
+        }
         document.onkeydown = function (ev) {
             var step = new Number(document.getElementById("step").value);
 
@@ -137,10 +137,8 @@
                     break;
                 }
         }
-    }
-
-    function drawScene() {
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        function drawScene() {
+          gl.clear(gl.COLOR_BUFFER_BIT);
         
         projectionValue = document.querySelector('input[name="projection"]:checked').value, 
         daylightValue = document.querySelector('input[name="daylight"]:checked').value,      
@@ -206,111 +204,160 @@
         requestAnimationFrame(drawScene);
     }
 
-    function initVertexShader(gl) {
-        // Vertexes and Texture Coordinates)
-        var vertexesAndTextures = [
-        // CUBE POINTS
-            // BACK
-            -0.50, -0.50, -0.50,    0.5, 0.5, // Vértice 0
-             0.50, -0.50, -0.50,    0.0, 0.5, // Vértice 1
-             0.50,  0.50, -0.50,    0.0, 1.0, // Vértice 2
-            -0.50,  0.50, -0.50,    0.5, 1.0, // Vértice 3
+        function initVertexShader(gl) {
+  // Vertexes and colors (X, Y, Z, R, G, B)
+var vertexesAndColors = [
+    // CUBO 1 (IZQUIERDA)
+    // BACK - AZUL
+    -0.75, -0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 0
+    -0.25, -0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 1
+    -0.25, 0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 2
+    -0.75, 0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 3
 
-            // FRONT
-            -0.50, -0.50,  0.50,    0.5, 0.5, // Vértice 4
-             0.50, -0.50,  0.50,    1.0, 0.5, // Vértice 5
-             0.50,  0.50,  0.50,    1.0, 1.0, // Vértice 6
-            -0.50,  0.50,  0.50,    0.5, 1.0, // Vértice 7
-            
-            // LEFT
-            -0.50, -0.50, -0.50,    0.0, 0.5, // Vértice 8
-            -0.50,  0.50, -0.50,    0.0, 1.0, // Vértice 9
-            -0.50,  0.50,  0.50,    0.5, 1.0, // Vértice 10
-            -0.50, -0.50,  0.50,    0.5, 0.5, // Vértice 11
-            
-            // RIGHT
-             0.50,  -0.50, -0.50,   0.5, 0.5, // Vértice 12
-             0.50,   0.50, -0.50,   0.5, 1.0, // Vértice 13
-             0.50,   0.50,  0.50,   0.0, 1.0, // Vértice 14
-             0.50,  -0.50,  0.50,   0.0, 0.5, // Vértice 15
-            
-            // BOTTOM 
-            -0.50,  -0.50, -0.50,   0.5, 0.7, // Vértice 16
-            -0.50,  -0.50,  0.50,   0.7, 0.7, // Vértice 17
-             0.50,  -0.50,  0.50,   0.7, 1.0, // Vértice 18
-             0.50,  -0.50, -0.50,   0.5, 1.0, // Vértice 19
-            
-            // TOP
-            -0.75,   0.50, -0.75,   0.0, 0.0, // Vértice 20
-            -0.75,   0.50,  0.75,   1.0, 0.5, // Vértice 21
-             0.75,   0.50,  0.75,   1.0, 0.0, // Vértice 22
-             0.75,   0.50, -0.75,   0.0, 0.5, // Vértice 23
+    // FRONT - ROJO
+    -0.75, -0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 4
+    -0.25, -0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 5
+    -0.25, 0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 6
+    -0.75, 0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 7
 
-        // PYRAMID POINTS
-             0.00,   1.00,  0.00,   0.5, 0.5, // Vértice 24
-             0.00,   1.00,  0.00,   0.5, 0.5, // Vértice 25
-             0.00,   1.00,  0.00,   0.5, 0.5, // Vértice 26
-             0.00,   1.00,  0.00,   0.5, 0.5, // Vértice 27
-        
-        // PYRAMID BASE POINTS
-            -0.75,   0.50, -0.75,    1.0, 0.0, // Vértice 28
-            -0.75,   0.50,  0.75,    0.0, 0.0, // Vértice 29
-             0.75,   0.50,  0.75,    1.0, 0.0, // Vértice 30
-             0.75,   0.50, -0.75,    0.0, 0.0  // Vértice 31            
+    // LEFT - AMARILLO
+    -0.75, -0.50, -0.25, 1.0, 1.0, 0.0, // Vértice 8
+    -0.75, 0.50, -0.25, 1.0, 1.0, 0.0, // Vértice 9
+    -0.75, 0.50, 0.25, 1.0, 1.0, 0.0, // Vértice 10
+    -0.75, -0.50, 0.25, 1.0, 1.0, 0.0, // Vértice 11
 
-        ];
+    // RIGHT - VERDE
+    -0.25, -0.50, -0.25, 0.0, 1.0, 0.0, // Vértice 12
+    -0.25, 0.50, -0.25, 0.0, 1.0, 0.0, // Vértice 13
+    -0.25, 0.50, 0.25, 0.0, 1.0, 0.0, // Vértice 14
+    -0.25, -0.50, 0.25, 0.0, 1.0, 0.0, // Vértice 15
 
-        // Indexes (for drawing squares using triangles)
-        var indexes = [
-            0, 1, 2,    // TRIANGLE #1
-            0, 2, 3,    // TRIANGLE #2
+    // BOTTOM - TURQUESA
+    -0.75, -0.50, -0.25, 0.0, 1.0, 1.0, // Vértice 16
+    -0.75, -0.50, 0.25, 0.0, 1.0, 1.0, // Vértice 17
+    -0.25, -0.50, 0.25, 0.0, 1.0, 1.0, // Vértice 18
+    -0.25, -0.50, -0.25, 0.0, 1.0, 1.0, // Vértice 19
 
-            4, 5, 6,    // TRIANGLE #3
-            4, 6, 7,    // Triangle #4
+    // CUBO 2 (DERECHA)
+    // BACK - AZUL
+    0.25, -0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 20
+    0.75, -0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 21
+    0.75, 0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 22
+    0.25, 0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 23
 
-            8, 9, 10,   // TRIANGLE #5
-            8, 10, 11,  // TRIANGLE #6
+    // FRONT - ROJO
+    0.25, -0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 24
+    0.75, -0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 25
+    0.75, 0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 26
+    0.25, 0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 27
 
-            12, 13, 14, // TRIANGLE #7
-            12, 14, 15, // Triangle #8
+    // LEFT - AMARILLO
+    0.25, -0.50, -0.25, 1.0, 1.0, 0.0, // Vértice 28
+    0.25, 0.50, -0.25, 1.0, 1.0, 0.0, // Vértice 29
+    0.25, 0.50, 0.25, 1.0, 1.0, 0.0, // Vértice 30
+    0.25, -0.50, 0.25, 1.0, 1.0, 0.0, // Vértice 31
 
-            16, 17, 18, // TRIANGLE #9
-            16, 18, 19, // TRIANGLE #10
+    // RIGHT - VERDE
+    0.75, -0.50, -0.25, 0.0, 1.0, 0.0, // Vértice 32
+    0.75, 0.50, -0.25, 0.0, 1.0, 0.0, // Vértice 33
+    0.75, 0.50, 0.25, 0.0, 1.0, 0.0, // Vértice 34
+    0.75, -0.50, 0.25, 0.0, 1.0, 0.0, // Vértice 35
 
-            20, 21, 22, // TRIANGLE #11
-            20, 22, 23, // TRIANGLE #12
+    // BOTTOM - TURQUESA
+    0.25, -0.50, -0.25, 0.0, 1.0, 1.0, // Vértice 36
+    0.25, -0.50, 0.25, 0.0, 1.0, 1.0, // Vértice 37
+    0.75, -0.50, 0.25, 0.0, 1.0, 1.0, // Vértice 38
+    0.75, -0.50, -0.25, 0.0, 1.0, 1.0, // Vértice 39
 
-            24, 28, 31, // TRIANGLE #13
-            25, 29, 30, // TRIANGLE #14
-
-            26, 30, 31, // TRIANGLE #15
-            27, 28, 29, // TRIANGLE #16
-
-            28, 29, 30, // TRIANGLE #17
-            28, 30, 31 // TRIANGLE #18 
+    // PIRÁMIDE
+     // 
+     0.00, 1.00, 0.00, 1.0, 0.0, 0.0, // Vértice 40
+// Base de la pirámide
+// (v1) (Amarillo)
+-0.75, 0.50, -0.75, 1.0, 1.0, 0.0, // Vértice 41 (Amarillo)
+// (v2) (Azul)
+-0.75, 0.50, 0.75, 0.0, 0.0, 1.0, // Vértice 42 (Azul)
+// (v3) (Verde)
+0.75, 0.50, 0.75, 0.0, 1.0, 0.0, // Vértice 43 (Verde)
+// (v4) (Turquesa)
+0.75, 0.50, -0.75, 0.0, 1.0, 1.0 // Vértice 44 (Turquesa)
 
         ];
 
-        // Write a_Position and a_Color using gl.ARRAY_BUFFER
-        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesAndTextures), gl.STATIC_DRAW);
 
-        var vertexPositionAttribute = gl.getAttribLocation(gl.program, "a_Position");
-        gl.enableVertexAttribArray(vertexPositionAttribute);
-        gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 4 * (3 + 2), 0);
+// Indexes (for drawing squares using triangles)
+var indexes = [
+    // CUBO 1
+    0, 1, 2,    // Triángulo #1
+    0, 2, 3,    // Triángulo #2
+    4, 5, 6,    // Triángulo #3
+    4, 6, 7,    // Triángulo #4
+    8, 9, 10,   // Triángulo #5
+    8, 10, 11,  // Triángulo #6
+    12, 13, 14, // Triángulo #7
+    12, 14, 15, // Triángulo #8
+    16, 17, 18, // Triángulo #9
+    16, 18, 19, // Triángulo #10
+    // CUBO 2
+    20, 21, 22,    // Triángulo #11
+    20, 22, 23,    // Triángulo #12
+    24, 25, 26,    // Triángulo #13
+    24, 26, 27,    // Triángulo #14
+    28, 29, 30,    // Triángulo #15
+    28, 30, 31,    // Triángulo #16
+    32, 33, 34,    // Triángulo #17
+    32, 34, 35,    // Triángulo #18
+    36, 37, 38,    // Triángulo #19
+    36, 38, 39,    // Triángulo #20
+    // Pirámide
+    40, 41, 42, // Triángulo #21 (base)
+    40, 42, 43, // Triángulo #22 (base)
+    40, 43, 44, // Triángulo #23 (base)
+    40, 44, 41, // Triángulo #24 (base)
+    41, 42, 43, // Triángulo #25 (caras laterales)
+    41, 43, 44, // Triángulo #26 (caras laterales)
+    42, 43, 44, // Triángulo #27 (caras laterales)
+    42, 44, 45, // Triángulo #28 (caras laterales)
+    43, 44, 45, // Triángulo #29 (caras laterales)
+    41, 45, 42, // Triángulo #30 (caras laterales)
+    40, 41, 45, // Triángulo #31 (caras inferiores)
+    40, 45, 44, // Triángulo #32 (caras inferiores)
+    40, 44, 43, // Triángulo #33 (caras inferiores)
+    40, 43, 42  // Triángulo #34 (caras inferiores)
+];
 
-        var vertexColorAttribute = gl.getAttribLocation(gl.program, "a_TexCoord");
-        gl.enableVertexAttribArray(vertexColorAttribute);
-        gl.vertexAttribPointer(vertexColorAttribute, 2, gl.FLOAT, false, 4 * (3 + 2), 4 * 3);
 
-        // Write indexes in gl.ELEMENT_ARRAY_BUFFER
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes), gl.STATIC_DRAW);
+
+    // Write a_Position and a_Color using gl.ARRAY_BUFFER
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesAndColors), gl.STATIC_DRAW);
+
+    var vertexPositionAttribute = gl.getAttribLocation(gl.program, "a_Position");
+    gl.enableVertexAttribArray(vertexPositionAttribute);
+    gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 4 * (3 + 2), 0);
+
+    var vertexColorAttribute = gl.getAttribLocation(gl.program, "a_TexCoord");
+    gl.enableVertexAttribArray(vertexColorAttribute);
+    gl.vertexAttribPointer(vertexColorAttribute, 3, gl.FLOAT, false, 4 * (3 + 2), 4 * 3);
+
+    // Write indexes in gl.ELEMENT_ARRAY_BUFFER
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes), gl.STATIC_DRAW);
+}
+
+    function initProjection(gl, canvas) {
+        var pMatrix = mat4.create(),
+            u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
+            ratio = canvas.width/canvas.height;
+
+        mat4.perspective(pMatrix, toRadian(60), ratio, 0.1, 100);
+        gl.uniformMatrix4fv(u_pMatrix, false, pMatrix);
     }
-    
-    function toRadian(g){
-		return g*Math.PI/180;
-	}
+
+    function toRadian(angle) {
+        return g* Math.PI / 180;
+    }
+
 
     function initProjection(gl, canvas) {
         // Write u_pMatrix
@@ -328,8 +375,8 @@
     function initTexturesAndDraw(gl) {
         var image0 = new Image(0),
             image1 = new Image(1);
-        image0.src = 'house.jpg';
-        image1.src = 'dark.gif';
+        image0.src = 'light.jpg';
+        image1.src = 'portal.jpg';
         image0.onload = function (){
             loadTexture(gl, "u_Sampler0", image0, 0, true);
             image1.onload = function (){
@@ -355,40 +402,46 @@
         gl.uniform1i(fragmentSamplerUniform, unitNumber);
     }
 
-    function initShaders(gl, vs_source, fs_source){
+    function initShaders(gl, vsSource, fsSource) {
+        // Create vertex shader object and compile shader
+        var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vertexShader, vsSource);
+        gl.compileShader(vertexShader);
 
-        // Create Program & Compile shaders 
-        var vertexShader = makeShader(gl, vs_source, gl.VERTEX_SHADER),
-            fragmentShader = makeShader(gl, fs_source, gl.FRAGMENT_SHADER),
-            glProgram = gl.createProgram();
+        // Create fragment shader object and compile shader
+        var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fragmentShader, fsSource);
+        gl.compileShader(fragmentShader);
 
-        // Attach and link shaders to the program 
-        gl.attachShader(glProgram, vertexShader);
-        gl.attachShader(glProgram, fragmentShader);
-        gl.linkProgram(glProgram);
+        // Create shader program and attach shaders
+        var program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
 
-        if (!gl.getProgramParameter(glProgram, gl.LINK_STATUS)){
-            alert("UNABLE TO INITIALIZE THE SHADER PROGRAM");
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            console.log("ERROR INITIALIZING SHADER PROGRAM: " + gl.getProgramInfoLog(program));
             return false;
         }
 
-        /* Use Program */
-        gl.useProgram(glProgram);
-        gl.program = glProgram;
+        gl.useProgram(program);
+        gl.program = program;
 
         return true;
     }
 
     function makeShader(gl, src, type){
 
-        var shader = gl.createShader(type);
-        gl.shaderSource(shader, src);
-        gl.compileShader(shader)
+var shader = gl.createShader(type);
+gl.shaderSource(shader, src);
+gl.compileShader(shader)
 
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
-            alert("ERROR COMPILE SHADER: " + gl.getShaderInfoLog(shader));
-            return;     
-        }
-        return shader;
-    }
+if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+    alert("ERROR COMPILE SHADER: " + gl.getShaderInfoLog(shader));
+    return;     
+}
+return shader;
+}
 </script>
+
+</html>
