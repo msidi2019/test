@@ -57,6 +57,7 @@
             count = 0.0,
             ratio,
             z = 3,
+            decorationValue = "no", // Default decoration value
             projectionValue = document.querySelector('input[name="projection"]:checked').value;
 
         function init(){
@@ -111,6 +112,11 @@
                         break;
                 }
                 drawScene();
+            });
+
+            // Event listener for decoration change
+            document.querySelectorAll('input[name="christmas"]').forEach(function(radioButton) {
+                radioButton.addEventListener('change', toggleDecoration);
             });
 
             drawScene();
@@ -171,69 +177,54 @@
             requestAnimationFrame(drawScene);
         }
 
+        function toggleDecoration(event) {
+            decorationValue = event.target.value;
+            drawScene();
+        }
+
         function initVertexShader(gl) {
-    // Vertexes and colors (X, Y, Z, R, G, B)
-    var vertexesAndColors = [
-        // Vertices and texture coordinates for front and back faces of cubes and pyramid
-        // Front face
-        -0.5, -0.5, 0.5, 1.0, 0.0, 0.0,  // Vertex 0
-        0.5, -0.5, 0.5, 1.0, 0.0, 0.0,   // Vertex 1
-        0.5, 0.5, 0.5, 1.0, 0.0, 0.0,    // Vertex 2
-        -0.5, 0.5, 0.5, 1.0, 0.0, 0.0,   // Vertex 3
-        // Back face
-        -0.5, -0.5, -0.5, 0.0, 1.0, 0.0, // Vertex 4
-        -0.5, 0.5, -0.5, 0.0, 1.0, 0.0,  // Vertex 5
-        0.5, 0.5, -0.5, 0.0, 1.0, 0.0,   // Vertex 6
-        0.5, -0.5, -0.5, 0.0, 1.0, 0.0,  // Vertex 7
+            // Vertexes and colors (X, Y, Z, R, G, B)
+            var vertexesAndColors = [
+                // Vertices and texture coordinates for front and back faces of cubes and pyramid
+                // Front face
+                -0.5, -0.5, 0.5, 1.0, 0.0, 0.0,  0.0, 0.0,  // Vertex 0
+                0.5, -0.5, 0.5, 1.0, 0.0, 0.0,   1.0, 0.0,  // Vertex 1
+                0.5, 0.5, 0.5, 1.0, 0.0, 0.0,    1.0, 1.0,  // Vertex 2
+                -0.5, 0.5, 0.5, 1.0, 0.0, 0.0,   0.0, 1.0,  // Vertex 3
+                // Back face
+                -0.5, -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, 0.0,  // Vertex 4
+                -0.5, 0.5, -0.5, 0.0, 1.0, 0.0,  0.0, 1.0,  // Vertex 5
+                0.5, 0.5, -0.5, 0.0, 1.0, 0.0,   1.0, 1.0,  // Vertex 6
+                0.5, -0.5, -0.5, 0.0, 1.0, 0.0,  1.0, 0.0,  // Vertex 7
 
-        // Add texture coordinates here for front and back faces
-        
-        // Pyramid
-        0.0, 0.5, 0.0, 0.0, 0.0, 1.0,     // Vertex 8
-        -0.5, -0.5, 0.5, 0.0, 0.0, 1.0,   // Vertex 9
-        0.5, -0.5, 0.5, 0.0, 0.0, 1.0,    // Vertex 10
-        0.5, -0.5, -0.5, 0.0, 0.0, 1.0,   // Vertex 11
-        -0.5, -0.5, -0.5, 0.0, 0.0, 1.0   // Vertex 12
-    ];
+                // Pyramid
+                0.0, 0.5, 0.0, 0.0, 0.0, 1.0,     0.5, 1.0,  // Vertex 8
+                -0.5, -0.5, 0.5, 0.0, 0.0, 1.0,   0.0, 0.0,  // Vertex 9
+                0.5, -0.5, 0.5, 0.0, 0.0, 1.0,    1.0, 0.0,  // Vertex 10
+                0.5, -0.5, -0.5, 0.0, 0.0, 1.0,   1.0, 1.0,  // Vertex 11
+                -0.5, -0.5, -0.5, 0.0, 0.0, 1.0,  0.0, 1.0   // Vertex 12
+            ];
 
-    // Indexes (for drawing squares using triangles)
-    var indexes = [
-        // Indexes for cubes and pyramid
-        // Front face
-        0, 1, 2, 0, 2, 3,
-        // Back face
-        4, 5, 6, 4, 6, 7,
-        // Top face
-        3, 2, 6, 3, 6, 7,
-        // Bottom face
-        0, 1, 5, 0, 5, 4,
-        // Left face
-        0, 3, 4, 3, 4, 7,
-        // Right face
-        1, 2, 5, 2, 5, 6,
-        // Pyramid
-        8, 9, 10, 8, 10, 11,
-        8, 11, 12, 8, 12, 9,
-        9, 10, 11, 9, 11, 12
-    ];
-
-    // Write a_Position, a_Color, and a_TextureCoord using gl.ARRAY_BUFFER
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesAndColors), gl.STATIC_DRAW);
-
-    var vertexPositionAttribute = gl.getAttribLocation(gl.program, "a_Position");
-    gl.enableVertexAttribArray(vertexPositionAttribute);
-    gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 4 * (3 + 3), 0);
-
-    var vertexColorAttribute = gl.getAttribLocation(gl.program, "a_Color");
-    gl.enableVertexAttribArray(vertexColorAttribute);
-    gl.vertexAttribPointer(vertexColorAttribute, 3, gl.FLOAT, false, 4 * (3 + 3), 4 * 3);
-
-    // Write indexes in gl.ELEMENT_ARRAY_BUFFER
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes), gl.STATIC_DRAW);
-}
-
+            // Indexes (for drawing squares using triangles)
+            var indexes = [
+                // Indexes for cubes and pyramid
+                // Front face
+                0, 1, 2, 0, 2, 3,
+                // Back face
+                4, 5, 6, 4, 6, 7,
+                // Top face
+                3, 2, 6, 3, 6, 7,
+                // Bottom face
+                0, 1, 5, 0, 5, 4,
+                // Left face
+                0, 3, 4, 3, 4, 7,
+                // Right face
+                1, 2, 5, 2, 5, 6,
+                // Pyramid
+                8, 9, 10, 8, 10, 11,
+                8, 11, 12, 8, 12, 9,
+                9, 10, 11, 9, 11, 12
+            ];
 
             // Write a_Position, a_Color, and a_TextureCoord using gl.ARRAY_BUFFER
             gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -254,7 +245,7 @@
             // Write indexes in gl.ELEMENT_ARRAY_BUFFER
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
             gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes), gl.STATIC_DRAW);
-        
+        }
 
         function initProjection(gl, canvas) {
             var pMatrix = mat4.create(),
@@ -297,7 +288,6 @@
             return true;
         }
     </script>
-
 </body>
 </html>
 
