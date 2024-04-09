@@ -19,35 +19,26 @@
     <b>Projection type</b>
     <input type="radio" name="projection" value="perspective" checked> Perspective
     <input type="radio" name="projection" value="orthographic"> Orthographic<br>
-    <b>Decoration</b>
-    <input type="radio" name="decoration" value="no" checked> No
-    <input type="radio" name="decoration" value="yes"> Yes<br>
-    <input type="number" id="step" value="1" min="1" max="10"> Step<br>
 
     <script id="shaderVs" type="x-shader/x-vertex">
         attribute vec4 a_Position;
-        attribute vec3 a_Color;
-        attribute vec2 a_TextureCoord;
+        attribute vec2 a_TexCoord;
+        varying highp vec2 v_TexCoord;
         uniform mat4 u_pMatrix;
         uniform mat4 u_vMatrix;
         uniform mat4 u_mvMatrix;
-        varying highp vec4 v_Color;
-        varying highp vec2 v_TextureCoord;
-
-        void main() {
+        void main(){
             gl_Position = u_pMatrix * u_vMatrix * u_mvMatrix * a_Position;
-            v_Color = vec4(a_Color, 1.0);
-            v_TextureCoord = a_TextureCoord;
+            v_TexCoord = a_TexCoord;
         }
     </script>
 
     <script id="shaderFs" type="x-shader/x-fragment">
-        varying highp vec4 v_Color;
-        varying highp vec2 v_TextureCoord;
+        precision mediump float;
+        varying highp vec2 v_TexCoord;
         uniform sampler2D u_Sampler;
-
         void main() {
-            gl_FragColor = texture2D(u_Sampler, v_TextureCoord);
+            gl_FragColor = texture2D(u_Sampler, v_TexCoord);
         }
     </script>
 
@@ -60,13 +51,14 @@
             projectionValue = document.querySelector('input[name="projection"]:checked').value;
 
         function init(){
+            
             // Get canvas object from the DOM and Init WebGL Context
             canvas = document.getElementById("myCanvas");
             gl = canvas.getContext("webgl");
 
             if (!gl) {
-                console.log("FAILED TO GET THE RENDERING CONTEXT FOR WEBGL.");
-                return;
+            console.log("FAILED TO GET THE RENDERING CONTEXT FOR WEBGL.");
+            return;
             }
 
             // Init Shaders 
@@ -74,8 +66,8 @@
                 fs = document.getElementById('shaderFs').innerHTML;
 
             if (!initShaders(gl, vs, fs)){
-                console.log("FAILED TO INITIALIZE SHADERS.");
-                return;
+            console.log("FAILED TO INITIALIZE SHADERS.");
+            return;
             }
 
             // Init vertex shader
@@ -90,40 +82,27 @@
             // Hidden surface removal
             gl.enable(gl.DEPTH_TEST);
 
+            // Load textures
+            loadTexture(gl, 'texture1.jpg', 0);
+            loadTexture(gl, 'texture2.jpg', 1);
+
             // Event listener for mouse wheel
             document.addEventListener('wheel', function (event) {
                 if (projectionValue == 'perspective'){
                     z = event.deltaY > 0 ? z - 1 : z + 1;
                 }
             });
-
-            // Event listener for keyboard input
-            document.addEventListener('keydown', function(event) {
-                var step = parseInt(document.getElementById("step").value);
-                switch(event.key) {
-                    case "ArrowUp":
-                        // Move camera up
-                        z -= step * 0.1;
-                        break;
-                    case "ArrowDown":
-                        // Move camera down
-                        z += step * 0.1;
-                        break;
-                }
-                drawScene();
-            });
-
             drawScene();
         }
 
         function drawScene() {
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             
-            projectionValue = document.querySelector('input[name="projection"]:checked').value;
-            var u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
-                u_vMatrix = gl.getUniformLocation(gl.program, "u_vMatrix"),
-                ratio = canvas.width/canvas.height;
-
+            projectionValue = document.querySelector('input[name="projection"]:checked').value,
+            u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
+            u_vMatrix = gl.getUniformLocation(gl.program, "u_vMatrix"),
+            ratio = canvas.width/canvas.height;
+            
             switch (projectionValue) {
                 case "perspective":
                     var pMatrix = mat4.perspective(mat4.create(), toRadian(60), ratio, 0.1, 100),
@@ -155,14 +134,12 @@
 
             switch (primitiveValue) {
                 case "triangles":
-                    gl.drawElements(gl.TRIANGLES, 6 * 3, gl.UNSIGNED_SHORT, 0);
-                    gl.drawElements(gl.TRIANGLES, 6 * 3, gl.UNSIGNED_SHORT, 6 * 3 * 2);
-                    gl.drawElements(gl.TRIANGLES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2);
+                    // DRAW PRIMITIVE ELEMENTS
+                    gl.drawArrays(gl.TRIANGLES, 0, 36);
                     break;
                 case "lines":
-                    gl.drawElements(gl.LINES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 0);
-                    gl.drawElements(gl.LINES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2);
-                    gl.drawElements(gl.LINES, 6 * 3 * 2 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2 * 2);
+                    // DRAW LINES
+                    gl.drawArrays(gl.LINES, 0, 36);
                     break;
                 default:
             }
@@ -172,73 +149,82 @@
         }
 
         function initVertexShader(gl) {
-            // Vertexes and colors (X, Y, Z, R, G, B)
-            var vertexesAndColors = [
-                // Vertices and texture coordinates for front and back faces of cubes and pyramid
+            // Vertexes, colors, and texture coordinates (X, Y, Z, R, G, B, S, T)
+            var vertexesColorsAndTexCoords = [
                 // Front face
-                -0.5, -0.5, 0.5, 1.0, 0.0, 0.0,  0.0, 0.0, // Vertex 0
-                 0.5, -0.5, 0.5, 1.0, 0.0, 0.0,  1.0, 0.0, // Vertex 1
-                 0.5,  0.5, 0.5, 1.0, 0.0, 0.0,  1.0, 1.0, // Vertex 2
-                -0.5,  0.5, 0.5, 1.0, 0.0, 0.0,  0.0, 1.0, // Vertex 3
+                -0.5, -0.5,  0.5,   1.0, 0.0, 0.0,   0.0, 0.0,  // Bottom-left
+                 0.5, -0.5,  0.5,   0.0, 1.0, 0.0,   1.0, 0.0,  // Bottom-right
+                 0.5,  0.5,  0.5,   0.0, 0.0, 1.0,   1.0, 1.0,  // Top-right
+                -0.5,  0.5,  0.5,   1.0, 1.0, 0.0,   0.0, 1.0,  // Top-left
                 // Back face
-                -0.5, -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, 0.0, // Vertex 4
-                -0.5,  0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 0.0, // Vertex 5
-                 0.5,  0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 1.0, // Vertex 6
-                 0.5, -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, 1.0, // Vertex 7
-                // Pyramid
-                 0.0,  0.5,  0.0, 0.0, 0.0, 1.0, 0.5, 1.0, // Vertex 8
-                -0.5, -0.5,  0.5, 0.0, 0.0, 1.0, 0.0, 0.0, // Vertex 9
-                 0.5, -0.5,  0.5, 0.0, 0.0, 1.0, 1.0, 0.0, // Vertex 10
-                 0.5, -0.5, -0.5, 0.0, 0.0, 1.0, 1.0, 1.0, // Vertex 11
-                -0.5, -0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 1.0  // Vertex 12
-            ];
-
-            // Indexes (for drawing squares using triangles)
-            var indexes = [
-                // Indexes for cubes and pyramid
-                // Front face
-                0, 1, 2, 0, 2, 3,
-                // Back face
-                4, 5, 6, 4, 6, 7,
+                -0.5, -0.5, -0.5,   1.0, 0.0, 0.0,   1.0, 0.0,  // Bottom-left
+                -0.5,  0.5, -0.5,   0.0, 1.0, 0.0,   0.0, 0.0,  // Top-left
+                 0.5,  0.5, -0.5,   0.0, 0.0, 1.0,   0.0, 1.0,  // Top-right
+                 0.5, -0.5, -0.5,   1.0, 1.0, 0.0,   1.0, 1.0,  // Bottom-right
                 // Top face
-                3, 2, 6, 3, 6, 7,
+                -0.5,  0.5, -0.5,   1.0, 0.0, 0.0,   0.0, 1.0,  // Bottom-left
+                -0.5,  0.5,  0.5,   0.0, 1.0, 0.0,   1.0, 1.0,  // Top-left
+                 0.5,  0.5,  0.5,   0.0, 0.0, 1.0,   1.0, 0.0,  // Top-right
+                 0.5,  0.5, -0.5,   1.0, 1.0, 0.0,   0.0, 0.0,  // Bottom-right
                 // Bottom face
-                0, 1, 5, 0, 5, 4,
-                // Left face
-                0, 3, 4, 3, 4, 7,
+                -0.5, -0.5, -0.5,   1.0, 0.0, 0.0,   0.0, 0.0,  // Top-left
+                 0.5, -0.5, -0.5,   0.0, 1.0, 0.0,   1.0, 0.0,  // Top-right
+                 0.5, -0.5,  0.5,   0.0, 0.0, 1.0,   1.0, 1.0,  // Bottom-right
+                -0.5, -0.5,  0.5,   1.0, 1.0, 0.0,   0.0, 1.0,  // Bottom-left
                 // Right face
-                1, 2, 5, 2, 5, 6,
-                // Pyramid
-                8, 9, 10, 8, 10, 11,
-                8, 11, 12, 8, 12, 9,
-                9, 10, 11, 9, 11, 12
+                 0.5, -0.5, -0.5,   1.0, 0.0, 0.0,   1.0, 0.0,  // Bottom-left
+                 0.5,  0.5, -0.5,   0.0, 1.0, 0.0,   0.0, 0.0,  // Top-left
+                 0.5,  0.5,  0.5,   0.0, 0.0, 1.0,   0.0, 1.0,  // Top-right
+                 0.5, -0.5,  0.5,   1.0, 1.0, 0.0,   1.0, 1.0,  // Bottom-right
+                // Left face
+                -0.5, -0.5, -0.5,   1.0, 0.0, 0.0,   0.0, 0.0,  // Bottom-left
+                -0.5, -0.5,  0.5,   0.0, 1.0, 0.0,   1.0, 0.0,  // Bottom-right
+                -0.5,  0.5,  0.5,   0.0, 0.0, 1.0,   1.0, 1.0,  // Top-right
+                -0.5,  0.5, -0.5,   1.0, 1.0, 0.0,   0.0, 1.0   // Top-left
             ];
 
-            // Write a_Position, a_Color, and a_TextureCoord using gl.ARRAY_BUFFER
-            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesAndColors), gl.STATIC_DRAW);
+            // Write data to buffer
+            var vertexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesColorsAndTexCoords), gl.STATIC_DRAW);
 
-            var vertexPositionAttribute = gl.getAttribLocation(gl.program, "a_Position");
-            gl.enableVertexAttribArray(vertexPositionAttribute);
-            gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 4 * (3 + 3 + 2), 0);
+            // Set up attributes
+            var FSIZE = vertexesColorsAndTexCoords.BYTES_PER_ELEMENT;
+            var a_Position = gl.getAttribLocation(gl.program, 'a_Position');
+            gl.vertexAttribPointer(a_Position, 3, gl.FLOAT, false, FSIZE * 8, 0);
+            gl.enableVertexAttribArray(a_Position);
 
-            var vertexColorAttribute = gl.getAttribLocation(gl.program, "a_Color");
-            gl.enableVertexAttribArray(vertexColorAttribute);
-            gl.vertexAttribPointer(vertexColorAttribute, 3, gl.FLOAT, false, 4 * (3 + 3 + 2), 4 * 3);
+            var a_Color = gl.getAttribLocation(gl.program, 'a_Color');
+            gl.vertexAttribPointer(a_Color, 3, gl.FLOAT, false, FSIZE * 8, FSIZE * 3);
+            gl.enableVertexAttribArray(a_Color);
 
-            var textureCoordAttribute = gl.getAttribLocation(gl.program, 'a_TextureCoord');
-            gl.vertexAttribPointer(textureCoordAttribute, 2, gl.FLOAT, false, 4 * (3 + 3 + 2), 4 * 6);
-            gl.enableVertexAttribArray(textureCoordAttribute);
+            var a_TexCoord = gl.getAttribLocation(gl.program, 'a_TexCoord');
+            gl.vertexAttribPointer(a_TexCoord, 2, gl.FLOAT, false, FSIZE * 8, FSIZE * 6);
+            gl.enableVertexAttribArray(a_TexCoord);
+        }
 
-            // Write indexes in gl.ELEMENT_ARRAY_BUFFER
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes), gl.STATIC_DRAW);
+        function loadTexture(gl, url, index) {
+            var texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+
+            // Fill the texture with a 1x1 blue pixel while waiting for the image
+            var pixel = new Uint8Array([0, 0, 255, 255]);  // opaque blue
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+
+            // Asynchronously load the image
+            var image = new Image();
+            image.onload = function() {
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+                gl.generateMipmap(gl.TEXTURE_2D);
+            };
+            image.src = url;
         }
 
         function initProjection(gl, canvas) {
             var pMatrix = mat4.create(),
                 u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
-                ratio = canvas.width/canvas.height;
+                ratio = canvas.width / canvas.height;
 
             mat4.perspective(pMatrix, toRadian(60), ratio, 0.1, 100);
             gl.uniformMatrix4fv(u_pMatrix, false, pMatrix);
@@ -270,12 +256,13 @@
                 return false;
             }
 
-            // Use the program object
             gl.useProgram(program);
             gl.program = program;
 
             return true;
         }
+
     </script>
-</body>
+
 </html>
+
