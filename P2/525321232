@@ -20,8 +20,8 @@
     <input type="radio" name="projection" value="perspective" checked> Perspective
     <input type="radio" name="projection" value="orthographic"> Orthographic<br>
     <b>Decoration</b>
-    <input type="radio" name="christmas" value="no" checked> No
-    <input type="radio" name="christmas" value="yes"> Yes<br>
+    <input type="radio" name="decoration" value="no" id="decorationNo" onclick="toggleDecoration()" checked> No
+    <input type="radio" name="decoration" value="yes" id="decorationYes" onclick="toggleDecoration()"> Yes<br>
     <input type="number" id="step" value="1" min="1" max="10"> Step<br>
 
     <script id="shaderVs" type="x-shader/x-vertex">
@@ -57,8 +57,8 @@
             count = 0.0,
             ratio,
             z = 3,
-            decorationValue = "no", // Default decoration value
-            projectionValue = document.querySelector('input[name="projection"]:checked').value;
+            projectionValue = document.querySelector('input[name="projection"]:checked').value,
+            decorationValue = "no"; // Variable para controlar la decoración
 
         function init(){
             // Get canvas object from the DOM and Init WebGL Context
@@ -112,11 +112,6 @@
                         break;
                 }
                 drawScene();
-            });
-
-            // Event listener for decoration change
-            document.querySelectorAll('input[name="christmas"]').forEach(function(radioButton) {
-                radioButton.addEventListener('change', toggleDecoration);
             });
 
             drawScene();
@@ -177,32 +172,32 @@
             requestAnimationFrame(drawScene);
         }
 
-        function toggleDecoration(event) {
-            decorationValue = event.target.value;
-            drawScene();
-        }
-
         function initVertexShader(gl) {
             // Vertexes and colors (X, Y, Z, R, G, B)
             var vertexesAndColors = [
                 // Vertices and texture coordinates for front and back faces of cubes and pyramid
                 // Front face
-                -0.5, -0.5, 0.5, 1.0, 0.0, 0.0,  0.0, 0.0,  // Vertex 0
-                0.5, -0.5, 0.5, 1.0, 0.0, 0.0,   1.0, 0.0,  // Vertex 1
-                0.5, 0.5, 0.5, 1.0, 0.0, 0.0,    1.0, 1.0,  // Vertex 2
-                -0.5, 0.5, 0.5, 1.0, 0.0, 0.0,   0.0, 1.0,  // Vertex 3
+                -0.5, -0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0, // Vertex 0
+                0.5, -0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 1.0,  // Vertex 1
+                0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 0.0,   // Vertex 2
+                -0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 0.0,  // Vertex 3
                 // Back face
-                -0.5, -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, 0.0,  // Vertex 4
-                -0.5, 0.5, -0.5, 0.0, 1.0, 0.0,  0.0, 1.0,  // Vertex 5
-                0.5, 0.5, -0.5, 0.0, 1.0, 0.0,   1.0, 1.0,  // Vertex 6
-                0.5, -0.5, -0.5, 0.0, 1.0, 0.0,  1.0, 0.0,  // Vertex 7
+                -0.5, -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, 1.0, // Vertex 4
+                -0.5, 0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 1.0,  // Vertex 5
+                0.5, 0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 0.0,   // Vertex 6
+                0.5, -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, 0.0,  // Vertex 7
 
-                // Pyramid
-                0.0, 0.5, 0.0, 0.0, 0.0, 1.0,     0.5, 1.0,  // Vertex 8
-                -0.5, -0.5, 0.5, 0.0, 0.0, 1.0,   0.0, 0.0,  // Vertex 9
-                0.5, -0.5, 0.5, 0.0, 0.0, 1.0,    1.0, 0.0,  // Vertex 10
-                0.5, -0.5, -0.5, 0.0, 0.0, 1.0,   1.0, 1.0,  // Vertex 11
-                -0.5, -0.5, -0.5, 0.0, 0.0, 1.0,  0.0, 1.0   // Vertex 12
+                // Add texture coordinates here for front and back faces
+                // Front face
+                0.0, 0.0,  // Vertex 0
+                1.0, 0.0,  // Vertex 1
+                1.0, 1.0,  // Vertex 2
+                0.0, 1.0,  // Vertex 3
+                // Back face
+                1.0, 0.0,  // Vertex 4
+                1.0, 1.0,  // Vertex 5
+                0.0, 1.0,  // Vertex 6
+                0.0, 0.0   // Vertex 7
             ];
 
             // Indexes (for drawing squares using triangles)
@@ -219,11 +214,7 @@
                 // Left face
                 0, 3, 4, 3, 4, 7,
                 // Right face
-                1, 2, 5, 2, 5, 6,
-                // Pyramid
-                8, 9, 10, 8, 10, 11,
-                8, 11, 12, 8, 12, 9,
-                9, 10, 11, 9, 11, 12
+                1, 2, 5, 2, 5, 6
             ];
 
             // Write a_Position, a_Color, and a_TextureCoord using gl.ARRAY_BUFFER
@@ -287,7 +278,14 @@
 
             return true;
         }
+
+        // Función para cambiar la decoración del arco
+        function toggleDecoration() {
+            var decorationOption = document.querySelector('input[name="decoration"]:checked').value;
+            decorationValue = decorationOption;
+            drawScene();
+        }
     </script>
+
 </body>
 </html>
-
