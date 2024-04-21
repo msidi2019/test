@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -27,12 +28,12 @@
         attribute vec4 a_Position;
         attribute vec3 a_Color;
         attribute vec2 a_TextureCoord;
+        varying highp vec4 v_Color;
+        varying highp vec2 v_TextureCoord;
         uniform mat4 u_pMatrix;
         uniform mat4 u_vMatrix;
         uniform mat4 u_mvMatrix;
-        varying highp vec4 v_Color;
-        varying highp vec2 v_TextureCoord;
-        void main(){
+        void main() {
             gl_Position = u_pMatrix * u_vMatrix * u_mvMatrix * a_Position;
             v_Color = vec4(a_Color, 1.0);
             v_TextureCoord = a_TextureCoord;
@@ -40,18 +41,17 @@
     </script>
 
     <script id="shaderFs" type="x-shader/x-fragment">
+        precision mediump float;
         varying highp vec4 v_Color;
         varying highp vec2 v_TextureCoord;
-        uniform sampler2D u_Sampler;
-        uniform sampler2D u_DecorationSampler;
-        uniform bool u_Christmas;
-        void main(){
-            vec4 textureColor = texture2D(u_Sampler, v_TextureCoord);
-            if (u_Christmas) {
-                vec4 decorationColor = texture2D(u_DecorationSampler, v_TextureCoord);
-                gl_FragColor = textureColor * decorationColor;
+        uniform sampler2D u_Texture;
+        uniform int u_Decoration;
+        uniform sampler2D u_DecorationTexture;
+        void main() {
+            if (u_Decoration == 1) {
+                gl_FragColor = texture2D(u_DecorationTexture, v_TextureCoord);
             } else {
-                gl_FragColor = textureColor;
+                gl_FragColor = texture2D(u_Texture, v_TextureCoord);
             }
         }
     </script>
@@ -64,24 +64,24 @@
             z = 3,
             projectionValue = document.querySelector('input[name="projection"]:checked').value;
 
-        function init(){
-            
+        function init() {
+
             // Get canvas object from the DOM and Init WebGL Context
             canvas = document.getElementById("myCanvas");
             gl = canvas.getContext("webgl");
 
             if (!gl) {
-            console.log("FAILED TO GET THE RENDERING CONTEXT FOR WEBGL.");
-            return;
+                console.log("FAILED TO GET THE RENDERING CONTEXT FOR WEBGL.");
+                return;
             }
 
             // Init Shaders 
             var vs = document.getElementById('shaderVs').innerHTML,
                 fs = document.getElementById('shaderFs').innerHTML;
 
-            if (!initShaders(gl, vs, fs)){
-            console.log("FAILED TO INITIALIZE SHADERS.");
-            return;
+            if (!initShaders(gl, vs, fs)) {
+                console.log("FAILED TO INITIALIZE SHADERS.");
+                return;
             }
 
             // Init vertex shader
@@ -97,32 +97,21 @@
             gl.enable(gl.DEPTH_TEST);
 
             // Event listener for mouse wheel
-            document.addEventListener('wheel', function (event) {
-                if (projectionValue == 'perspective'){
+            document.addEventListener('wheel', function(event) {
+                if (projectionValue == 'perspective') {
                     z = event.deltaY > 0 ? z - 1 : z + 1;
+                    drawScene();
                 }
             });
 
-            // Event listener for decoration radio button
-            var christmasRadio = document.querySelector('input[name="christmas"]');
-            christmasRadio.addEventListener('change', function() {
+            // Event listener for Decoration radio button
+            document.querySelector('input[name="christmas"]').addEventListener('change', function() {
                 drawScene();
             });
 
-            // Event listener for key presses
+            // Event listener for keyboard input
             document.addEventListener('keydown', function(event) {
-                var step = parseInt(document.getElementById("speed").value);
-                switch (event.key) {
-                    case 'ArrowUp':
-                        // Elevate camera looking at the arch
-                        z -= step * 0.1;
-                        break;
-                    case 'ArrowDown':
-                        // Descend camera looking at the arch
-                        z += step * 0.1;
-                        break;
-                }
-                drawScene();
+                handleKeyDown(event);
             });
 
             drawScene();
@@ -130,18 +119,18 @@
 
         function drawScene() {
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-            
-            projectionValue = document.querySelector('input[name="projection"]:checked').value,
-            u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
-            u_vMatrix = gl.getUniformLocation(gl.program, "u_vMatrix"),
-            ratio = canvas.width/canvas.height;
-            
+
+            projectionValue = document.querySelector('input[name="projection"]:checked').value;
+            var u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
+                u_vMatrix = gl.getUniformLocation(gl.program, "u_vMatrix"),
+                ratio = canvas.width / canvas.height;
+
             switch (projectionValue) {
                 case "perspective":
                     var pMatrix = mat4.perspective(mat4.create(), toRadian(60), ratio, 0.1, 100),
                         vMatrix = mat4.lookAt(mat4.create(), [0, 0, z], [0, 0, 0], [0, 1, 0]);
                     break;
-            
+
                 case "orthographic":
                     var pMatrix = mat4.ortho(mat4.create(), -ratio, ratio, -1.0, 1.50, -1.0, 1.50),
                         vMatrix = mat4.create();
@@ -161,115 +150,203 @@
 
             var speed = parseInt(document.getElementById("speed").value);
 
-            if (rotationChecked){
+            if (rotationChecked) {
                 count += 0.01 * speed;
             }
 
-            // Set the active texture unit to texture unit 0
-            gl.activeTexture(gl.TEXTURE0);
-            // Bind the texture to texture unit 0
-            gl.bindTexture(gl.TEXTURE_2D, cubeTexture);
-            // Tell the shader we bound the texture to texture unit 0
-            gl.uniform1i(gl.getUniformLocation(gl.program, "u_Sampler"), 0);
+            // Get the Decoration option value
+            var decorationValue = document.querySelector('input[name="christmas"]:checked').value;
+            var u_Decoration = gl.getUniformLocation(gl.program, "u_Decoration");
 
-            if (document.querySelector('input[name="christmas"]:checked').value === 'yes') {
-                // Set the active texture unit to texture unit 1
-                gl.activeTexture(gl.TEXTURE1);
-                // Bind the decoration texture to texture unit 1
-                gl.bindTexture(gl.TEXTURE_2D, christmasTexture);
-                // Tell the shader we bound the decoration texture to texture unit 1
-                gl.uniform1i(gl.getUniformLocation(gl.program, "u_DecorationSampler"), 1);
-                // Tell the shader to enable decoration
-                gl.uniform1i(gl.getUniformLocation(gl.program, "u_Christmas"), 1);
+            if (decorationValue === "yes") {
+                gl.uniform1i(u_Decoration, 1);
             } else {
-                // Tell the shader to disable decoration
-                gl.uniform1i(gl.getUniformLocation(gl.program, "u_Christmas"), 0);
+                gl.uniform1i(u_Decoration, 0);
             }
 
-            switch (primitiveValue) {
-                case "triangles":
-                    // DRAW PRIMITIVE ELEMENTS FOR FIRST CUBE
-                    gl.drawElements(gl.TRIANGLES, 6 * 3, gl.UNSIGNED_SHORT, 0);
-                    // DRAW PRIMITIVE ELEMENTS FOR SECOND CUBE
-                    gl.drawElements(gl.TRIANGLES, 6 * 3, gl.UNSIGNED_SHORT, 6 * 3 * 2);
-                    // DRAW PRIMITIVE ELEMENTS FOR PYRAMID
-                    gl.drawElements(gl.TRIANGLES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2); // Se multiplicó por 2 para dibujar los 6 triángulos de la pirámide
-                    break;
-                case "lines":
-                    // DRAW LINES FOR FIRST CUBE
-                    gl.drawElements(gl.LINES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 0); // Multiplicado por 2 porque cada triángulo tiene 3 líneas
-                    // DRAW LINES FOR SECOND CUBE
-                    gl.drawElements(gl.LINES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2); // Multiplicado por 2 para dibujar las líneas de los dos cubos
-                    // DRAW LINES FOR PYRAMID
-                    gl.drawElements(gl.LINES, 6 * 3 * 2 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2 * 2); // Multiplicado por 2 para dibujar las líneas de la pirámide
-                    break;
-                default:
-            }
+            // Texture for the model
+            var texture = loadTexture(gl, 'portal.jpg');
+            var textureCoordAttribute = gl.getAttribLocation(gl.program, "a_TextureCoord");
+            gl.enableVertexAttribArray(textureCoordAttribute);
+            gl.vertexAttribPointer(textureCoordAttribute, 2, gl.FLOAT, false, 0, 0);
+
+            // Texture for the decoration
+            var decorationTexture = loadTexture(gl, 'light.jpg');
+
+            // Pass the textures to the shaders
+            gl.uniform1i(gl.getUniformLocation(gl.program, "u_Texture"), 0);
+            gl.uniform1i(gl.getUniformLocation(gl.program, "u_DecorationTexture"), 1);
+
+            // DRAW PRIMITIVE ELEMENTS HERE
 
             // CALL DRAWSCENE AGAIN IN THE NEXT BROWSER REPAINT
             requestAnimationFrame(drawScene);
         }
-           
-        // Function to load texture from image URL
-        function loadTexture(gl, url, callback) {
-            var texture = gl.createTexture();
+
+        function initVertexShader(gl) {
+            // Vertexes and colors (X, Y, Z, R, G, B)
+            var vertexesAndColors = [
+                // CUBO 1 (IZQUIERDA)
+                // BACK - AZUL
+                -0.75, -0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 0
+                -0.25, -0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 1
+                -0.25, 0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 2
+                -0.75, 0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 3
+                // FRONT - ROJO
+                -0.75, -0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 4
+                -0.25, -0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 5
+                -0.25, 0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 6
+                -0.75, 0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 7
+                // LEFT - AMARILLO
+                -0.75, -0.50, -0.25, 1.0, 1.0, 0.0, // Vértice 8
+                -0.75, 0.50, -0.25, 1.0, 1.0, 0.0, // Vértice 9
+                -0.75, 0.50, 0.25, 1.0, 1.0, 0.0, // Vértice 10
+                -0.75, -0.50, 0.25, 1.0, 1.0, 0.0, // Vértice 11
+                // RIGHT - VERDE
+                -0.25, -0.50, -0.25, 0.0, 1.0, 0.0, // Vértice 12
+                -0.25, 0.50, -0.25, 0.0, 1.0, 0.0, // Vértice 13
+                -0.25, 0.50, 0.25, 0.0, 1.0, 0.0, // Vértice 14
+                -0.25, -0.50, 0.25, 0.0, 1.0, 0.0, // Vértice 15
+                // TOP - BLANCO
+                -0.75, 0.50, -0.25, 1.0, 1.0, 1.0, // Vértice 16
+                -0.25, 0.50, -0.25, 1.0, 1.0, 1.0, // Vértice 17
+                -0.25, 0.50, 0.25, 1.0, 1.0, 1.0, // Vértice 18
+                -0.75, 0.50, 0.25, 1.0, 1.0, 1.0, // Vértice 19
+                // BOTTOM - CYAN
+                -0.75, -0.50, -0.25, 0.0, 1.0, 1.0, // Vértice 20
+                -0.25, -0.50, -0.25, 0.0, 1.0, 1.0, // Vértice 21
+                -0.25, -0.50, 0.25, 0.0, 1.0, 1.0, // Vértice 22
+                -0.75, -0.50, 0.25, 0.0, 1.0, 1.0, // Vértice 23
+                // CUBO 2 (DERECHA)
+                // BACK - AZUL
+                0.25, -0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 24
+                0.75, -0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 25
+                0.75, 0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 26
+                0.25, 0.50, -0.25, 0.0, 0.0, 1.0, // Vértice 27
+                // FRONT - ROJO
+                0.25, -0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 28
+                0.75, -0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 29
+                0.75, 0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 30
+                0.25, 0.50, 0.25, 1.0, 0.0, 0.0, // Vértice 31
+                // LEFT - AMARILLO
+                0.25, -0.50, -0.25, 1.0, 1.0, 0.0, // Vértice 32
+                0.25, 0.50, -0.25, 1.0, 1.0, 0.0, // Vértice 33
+                0.25, 0.50, 0.25, 1.0, 1.0, 0.0, // Vértice 34
+                0.25, -0.50, 0.25, 1.0, 1.0, 0.0, // Vértice 35
+                // RIGHT - VERDE
+                0.75, -0.50, -0.25, 0.0, 1.0, 0.0, // Vértice 36
+                0.75, 0.50, -0.25, 0.0, 1.0, 0.0, // Vértice 37
+                0.75, 0.50, 0.25, 0.0, 1.0, 0.0, // Vértice 38
+                0.75, -0.50, 0.25, 0.0, 1.0, 0.0, // Vértice 39
+                // TOP - BLANCO
+                0.25, 0.50, -0.25, 1.0, 1.0, 1.0, // Vértice 40
+                0.75, 0.50, -0.25, 1.0, 1.0, 1.0, // Vértice 41
+                0.75, 0.50, 0.25, 1.0, 1.0, 1.0, // Vértice 42
+                0.25, 0.50, 0.25, 1.0, 1.0, 1.0, // Vértice 43
+                // BOTTOM - CYAN
+                0.25, -0.50, -0.25, 0.0, 1.0, 1.0, // Vértice 44
+                0.75, -0.50, -0.25, 0.0, 1.0, 1.0, // Vértice 45
+                0.75, -0.50, 0.25, 0.0, 1.0, 1.0, // Vértice 46
+                0.25, -0.50, 0.25, 0.0, 1.0, 1.0 // Vértice 47
+            ];
+
+            var FSIZE = vertexesAndColors.BYTES_PER_ELEMENT;
+
+            var verticesAndColorsBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, verticesAndColorsBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesAndColors), gl.STATIC_DRAW);
+
+            var a_Position = gl.getAttribLocation(gl.program, 'a_Position');
+            var a_Color = gl.getAttribLocation(gl.program, 'a_Color');
+            gl.vertexAttribPointer(a_Position, 3, gl.FLOAT, false, FSIZE * 6, 0);
+            gl.vertexAttribPointer(a_Color, 3, gl.FLOAT, false, FSIZE * 6, FSIZE * 3);
+            gl.enableVertexAttribArray(a_Position);
+            gl.enableVertexAttribArray(a_Color);
+        }
+
+        function initProjection(gl, canvas) {
+            var u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
+                ratio = canvas.width / canvas.height,
+                pMatrix = mat4.perspective(mat4.create(), toRadian(60), ratio, 0.1, 100);
+
+            gl.uniformMatrix4fv(u_pMatrix, false, pMatrix);
+        }
+
+        function loadTexture(gl, url) {
+            const texture = gl.createTexture();
             gl.bindTexture(gl.TEXTURE_2D, texture);
-            var image = new Image();
+
+            // Because images have to be download over the internet
+            // they might take a moment until they are ready.
+            // Until then put a single pixel in the texture so we can
+            // use it immediately. When the image has finished downloading
+            // we'll update the texture with the contents of the image.
+            const level = 0;
+            const internalFormat = gl.RGBA;
+            const width = 1;
+            const height = 1;
+            const border = 0;
+            const srcFormat = gl.RGBA;
+            const srcType = gl.UNSIGNED_BYTE;
+            const pixel = new Uint8Array([0, 0, 255, 255]); // opaque blue
+            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                width, height, border, srcFormat, srcType,
+                pixel);
+
+            const image = new Image();
             image.onload = function() {
                 gl.bindTexture(gl.TEXTURE_2D, texture);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-                if (callback) callback();
+                gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                    srcFormat, srcType, image);
+
+                // WebGL1 has different requirements for power of 2 images
+                // vs non power of 2 images so check if the image is a
+                // power of 2 in both dimensions.
+                if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+                    // Yes, it's a power of 2. Generate mips.
+                    gl.generateMipmap(gl.TEXTURE_2D);
+                } else {
+                    // No, it's not a power of 2. Turn of mips and set
+                    // wrapping to clamp to edge
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                }
             };
             image.src = url;
+
             return texture;
         }
 
-        var cubeTexture, christmasTexture;
-
-        function initTextures() {
-            // Load cube texture
-            cubeTexture = loadTexture(gl, 'path/to/texture1.jpg');
-
-            // Load decoration texture (light.jpg)
-            christmasTexture = loadTexture(gl, 'path/to/light.jpg');
+        function toRadian(angle) {
+            return angle * Math.PI / 180.0;
         }
 
-        function initVertexShader(gl) {
-            // Vertexes, colors, and texture coordinates (X, Y, Z, R, G, B, S, T)
-            var vertexesAndColorsAndTexCoords = [
-                // Vertexes for cubes and pyramid
-                // ...
-                // Texture coordinates for cubes and pyramid
-                // ...
-            ];
-
-            // Write a_Position, a_Color, and a_TextureCoord using gl.ARRAY_BUFFER
-            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesAndColorsAndTexCoords), gl.STATIC_DRAW);
-
-            var vertexPositionAttribute = gl.getAttribLocation(gl.program, "a_Position");
-            gl.enableVertexAttribArray(vertexPositionAttribute);
-            gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 4 * (3 + 3 + 2), 0);
-
-            var vertexColorAttribute = gl.getAttribLocation(gl.program, "a_Color");
-            gl.enableVertexAttribArray(vertexColorAttribute);
-            gl.vertexAttribPointer(vertexColorAttribute, 3, gl.FLOAT, false, 4 * (3 + 3 + 2), 4 * 3);
-
-            var textureCoordAttribute = gl.getAttribLocation(gl.program, "a_TextureCoord");
-            gl.enableVertexAttribArray(textureCoordAttribute);
-            gl.vertexAttribPointer(textureCoordAttribute, 2, gl.FLOAT, false, 4 * (3 + 3 + 2), 4 * (3 + 3));
+        function isPowerOf2(value) {
+            return (value & (value - 1)) == 0;
         }
 
-        // Event listener for radio button change
-        document.querySelectorAll('input[name="christmas"]').forEach(function(radio) {
-            radio.addEventListener('change', function() {
-                drawScene();
-            });
-        });
+        function handleKeyDown(event) {
+            switch (event.key) {
+                case "ArrowUp":
+                    z -= 0.1;
+                    break;
+                case "ArrowDown":
+                    z += 0.1;
+                    break;
+                case "ArrowLeft":
+                    count -= 0.01;
+                    break;
+                case "ArrowRight":
+                    count += 0.01;
+                    break;
+                default:
+                    return;
+            }
+            drawScene();
+        }
     </script>
+</body>
 
 </html>
+
