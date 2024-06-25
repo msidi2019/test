@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+    <title>Ejercicio 5 Modificado</title>
+</head>
+
+<body onload="init()">
+    <canvas id="myCanvas" width="640" height="480"></canvas><br>
+    <b>Rotation</b>
+    <input type="checkbox" name="rotation" checked>
+    <input type="range" id="speed" min="1" max="3" value="1" step="1"> Speed<br>
+    <b>WebGL primitive</b>
+    <input type="radio" name="primitive" value="triangles" checked> Triangles
+    <input type="radio" name="primitive" value="lines"> Lines<br>
+    <b>Projection type</b>
+    <input type="radio" name="projection" value="perspective" checked> Perspective
+    <input type="radio" name="projection" value="orthographic"> Orthographic<br>
+    <b>Decoration</b>
+    <input type="radio" name="decoration" value="no" checked> No
+    <input type="radio" name="decoration" value="yes"> Yes<br>
+    <input type="number" id="step" min="0.1" max="1" step="0.1" value="0.1"> Step<br>
+
+    <script id="shaderVs" type="x-shader/x-vertex">
+        attribute vec4 a_Position;
+        attribute vec3 a_Color;
+        attribute vec2 a_TexCoord;
+        uniform mat4 u_pMatrix;
+        uniform mat4 u_vMatrix;
+        uniform mat4 u_mvMatrix;
+        varying highp vec4 v_Color;
+        varying highp vec2 v_TexCoord;
+        void main(){
+            gl_Position = u_pMatrix * u_vMatrix * u_mvMatrix * a_Position;
+            v_Color = vec4(a_Color, 1.0);
+            v_TexCoord = a_TexCoord;
+        }
+    </script>
+
+    <script id="shaderFs" type="x-shader/x-fragment">
+        varying highp vec4 v_Color;
+        varying highp vec2 v_TexCoord;
+        uniform sampler2D u_Sampler;
+        uniform bool u_UseTexture;
+        void main(){
+            if (u_UseTexture) {
+                gl_FragColor = texture2D(u_Sampler, v_TexCoord);
+            } else {
+                gl_FragColor = v_Color;
+            }
+        }
+    </script>
+
+    <script>
+        var gl,
+            canvas,
+            count = 0.0,
+            ratio,
+            z = 3,
+            projectionValue = "perspective",
+            portalTexture,
+            lightTexture,
+            cameraPosition = [0, 0, 3],
+            cameraTarget = [0, 0, 0],
+            cameraUp = [0, 1, 0];
+
+        function init(){
+            // Get canvas object from the DOM and Init WebGL Context
+            canvas = document.getElementById("myCanvas");
+            gl = canvas.getContext("webgl");
+
+            if (!gl) {
+                console.log("FAILED TO GET THE RENDERING CONTEXT FOR WEBGL.");
+                return;
+            }
+
+            // Init Shaders 
+            var vs = document.getElementById('shaderVs').innerHTML,
+                fs = document.getElementById('shaderFs').innerHTML;
+
+            if (!initShaders(gl, vs, fs)){
+                console.log("FAILED TO INITIALIZE SHADERS.");
+                return;
+            }
+
+            // Init vertex shader
+            initVertexShader(gl);
+
+            // Init projection matrix
+            initProjection(gl, canvas);
+
+            // Set clear canvas color
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+            // Hidden surface removal
+            gl.enable(gl.DEPTH_TEST);
+
+            // Load textures
+            loadTextures();
+
+            // Event listener for mouse wheel
+            document.addEventListener('wheel', function (event) {
+                if (projectionValue == 'perspective'){
+                    z = event.deltaY > 0 ? z - 1 : z + 1;
+                }
+            });
+
+            // Event listener for keyboard
+            document.addEventListener('keydown', handleKeyDown);
+
+            drawScene();
+        }
+
+        function loadTextures() {
+            function loadTexture(url) {
+                return new Promise((resolve) => {
+                    var image = new Image();
+                    image.onload = function() { resolve(image); };
+                    image.src = url;
+                });
+            }
+
+            Promise.all([
+                loadTexture('portal.jpg'),
+                loadTexture('light.jpg')
+            ]).then(([portalImg, lightImg]) => {
+                portalTexture = createTexture(gl, portalImg);
+                lightTexture = createTexture(gl, lightImg);
+                drawScene();
+            });
+        }
+
+        function createTexture(gl, image) {
+            var texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            return texture;
+        }
+
+        function handleKeyDown(event) {
+            var step = parseFloat(document.getElementById("step").value);
+            switch(event.key) {
+                case "ArrowUp":
+                    cameraPosition[1] += step;
+                    cameraTarget[1] += step;
+                    break;
+                case "ArrowDown":
+                    cameraPosition[1] -= step;
+                    cameraTarget[1] -= step;
+                    break;
+            }
+            drawScene();
+        }
+
+        function drawScene() {
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            
+            projectionValue = document.querySelector('input[name="projection"]:checked').value;
+            var u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix");
+            var u_vMatrix = gl.getUniformLocation(gl.program, "u_vMatrix");
+            ratio = canvas.width/canvas.height;
+            
+            var pMatrix, vMatrix;
+            if (projectionValue === "perspective") {
+                pMatrix = mat4.perspective(mat4.create(), toRadian(60), ratio, 0.1, 100);
+                vMatrix = mat4.lookAt(mat4.create(), cameraPosition, cameraTarget, cameraUp);
+            } else {
+                pMatrix = mat4.ortho(mat4.create(), -ratio, ratio, -1.0, 1.50, -1.0, 1.50);
+                vMatrix = mat4.create();
+            }
+
+            gl.uniformMatrix4fv(u_pMatrix, false, pMatrix);
+            gl.uniformMatrix4fv(u_vMatrix, false, vMatrix);
+
+            var rotationChecked = document.querySelector('input[name="rotation"]').checked;
+            var primitiveValue = document.querySelector('input[name="primitive"]:checked').value;
+            var decorationValue = document.querySelector('input[name="decoration"]:checked').value;
+            var mvMatrix = mat4.fromRotation(mat4.create(), count, [0, 1, 0]);
+            var u_mvMatrix = gl.getUniformLocation(gl.program, "u_mvMatrix");
+
+            gl.uniformMatrix4fv(u_mvMatrix, false, mvMatrix);
+
+            var speed = parseInt(document.getElementById("speed").value);
+
+            if (rotationChecked){
+                count += 0.01 * speed;
+            }
+
+            // Activar textura
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, portalTexture);
+            gl.uniform1i(gl.getUniformLocation(gl.program, "u_Sampler"), 0);
+            gl.uniform1i(gl.getUniformLocation(gl.program, "u_UseTexture"), true);
+
+            if (decorationValue === "yes") {
+                gl.bindTexture(gl.TEXTURE_2D, lightTexture);
+            }
+
+            // Dibujar objetos
+            if (primitiveValue === "triangles") {
+                gl.drawElements(gl.TRIANGLES, 6 * 3, gl.UNSIGNED_SHORT, 0);
+                gl.drawElements(gl.TRIANGLES, 6 * 3, gl.UNSIGNED_SHORT, 6 * 3 * 2);
+                gl.drawElements(gl.TRIANGLES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2);
+            } else {
+                gl.drawElements(gl.LINES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 0);
+                gl.drawElements(gl.LINES, 6 * 3 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2);
+                gl.drawElements(gl.LINES, 6 * 3 * 2 * 2, gl.UNSIGNED_SHORT, 6 * 3 * 2 * 2 * 2);
+            }
+
+            requestAnimationFrame(drawScene);
+        }
+
+        function initVertexShader(gl) {
+            // Vértices, colores y coordenadas de textura (X, Y, Z, R, G, B, S, T)
+            var vertexesColorsAndTexCoords = [
+                // CUBO 1 (IZQUIERDA)
+                // BACK - AZUL
+                -0.75, -0.50, -0.25, 0.0, 0.0, 1.0, 0.0, 0.0,
+                -0.25, -0.50, -0.25, 0.0, 0.0, 1.0, 1.0, 0.0,
+                -0.25, 0.50, -0.25, 0.0, 0.0, 1.0, 1.0, 1.0,
+                -0.75, 0.50, -0.25, 0.0, 0.0, 1.0, 0.0, 1.0,
+
+                // FRONT - ROJO (puerta)
+                -0.75, -0.50, 0.25, 1.0, 0.0, 0.0, 0.0, 0.0,
+                -0.25, -0.50, 0.25, 1.0, 0.0, 0.0, 1.0, 0.0,
+                -0.25, 0.50, 0.25, 1.0, 0.0, 0.0, 1.0, 1.0,
+                -0.75, 0.50, 0.25, 1.0, 0.0, 0.0, 0.0, 1.0,
+
+                // LEFT - AMARILLO
+                -0.75, -0.50, -0.25, 1.0, 1.0, 0.0, 0.0, 0.0,
+                -0.75, 0.50, -0.25, 1.0, 1.0, 0.0, 1.0, 0.0,
+                -0.75, 0.50, 0.25, 1.0, 1.0, 0.0, 1.0, 1.0,
+                -0.75, -0.50, 0.25, 1.0, 1.0, 0.0, 0.0, 1.0,
+
+                // RIGHT - VERDE
+                -0.25, -0.50, -0.25, 0.0, 1.0, 0.0, 0.0, 0.0,
+                -0.25, 0.50, -0.25, 0.0, 1.0, 0.0, 1.0, 0.0,
+                -0.25, 0.50, 0.25, 0.0, 1.0, 0.0, 1.0, 1.0,
+                -0.25, -0.50, 0.25, 0.0, 1.0, 0.0, 0.0, 1.0,
+
+                // BOTTOM - TURQUESA
+                -0.75, -0.50, -0.25, 0.0, 1.0, 1.0, 0.0, 0.0,
+                -0.75, -0.50, 0.25, 0.0, 1.0, 1.0, 1.0, 0.0,
+                -0.25, -0.50, 0.25, 0.0, 1.0, 1.0, 1.0, 1.0,
+                -0.25, -0.50, -0.25, 0.0, 1.0, 1.0, 0.0, 1.0,
+
+                // CUBO 2 (DERECHA)
+                // ... (repite el patrón para el segundo cubo)
+
+                // PIRÁMIDE
+                // Vértice superior
+                0.00, 1.00, 0.00, 1.0, 0.0, 0.0, 0.5, 1.0,
+                // Base de la pirámide
+                -0.75, 0.50, -0.75, 1.0, 1.0, 0.0, 0.0, 0.0,
+                -0.75, 0.50, 0.75, 0.0, 0.0, 1.0, 0.0, 1.0,
+                0.75, 0.50, 0.75, 0.0, 1.0, 0.0, 1.0, 1.0,
+                0.75, 0.50, -0.75, 0.0, 1.0, 1.0, 1.0, 0.0
+            ];
+
+            // Indexes (for drawing squares using triangles)
+            var indexes = [
+                // CUBO 1
+                0, 1, 2,    0, 2, 3,    // Back
+                4, 5, 6,    4, 6, 7,    // Front
+                8, 9, 10,   8, 10, 11,  // Left
+                12, 13, 14, 12, 14, 15, // Right
+                16, 17, 18, 16, 18, 19, // Bottom
+                // CUBO 2
+                20, 21, 22, 20, 22, 23, // Back
+                24, 25, 26, 24, 26, 27, // Front
+                28, 29, 30, 28, 30, 31, // Left
+                32, 33, 34, 32, 34, 35, // Right
+                36, 37, 38, 36, 38, 39, // Bottom
+                // PIRÁMIDE
+                40, 41, 42, // Base
+                40, 42, 43,
+                40, 43, 44,
+                40, 44, 41,
+                41, 42, 40, // Caras laterales
+                42, 43, 40,
+                43, 44, 40,
+                44, 41, 40
+            ];
+
+            // Write vertexesColorsAndTexCoords using gl.ARRAY_BUFFER
+            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexesColorsAndTexCoords), gl.STATIC_DRAW);
+
+            var vertexPositionAttribute = gl.getAttribLocation(gl.program, "a_Position");
+            gl.enableVertexAttribArray(vertexPositionAttribute);
+            gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 4 * (3 + 3 + 2), 0);
+
+            var vertexColorAttribute = gl.getAttribLocation(gl.program, "a_Color");
+            gl.enableVertexAttribArray(vertexColorAttribute);
+            gl.vertexAttribPointer(vertexColorAttribute, 3, gl.FLOAT, false, 4 * (3 + 3 + 2), 4 * 3);
+
+            var textureCoordAttribute = gl.getAttribLocation(gl.program, "a_TexCoord");
+            gl.enableVertexAttribArray(textureCoordAttribute);
+            gl.vertexAttribPointer(textureCoordAttribute, 2, gl.FLOAT, false, 4 * (3 + 3 + 2), 4 * 6);
+
+            // Write indexes in gl.ELEMENT_ARRAY_BUFFER
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes), gl.STATIC_DRAW);
+        }
+
+        function initProjection(gl, canvas) {
+            var pMatrix = mat4.create(),
+                u_pMatrix = gl.getUniformLocation(gl.program, "u_pMatrix"),
+                ratio = canvas.width/canvas.height;
+
+            mat4.perspective(pMatrix, toRadian(60), ratio, 0.1, 100);
+            gl.uniformMatrix4fv(u_pMatrix, false, pMatrix);
+        }
+
+        function toRadian(angle) {
+            return angle * Math.PI / 180;
+        }
+
+        function initShaders(gl, vsSource, fsSource) {
+            var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vertexShader, vsSource);
+            gl.compileShader(vertexShader);
+
+            var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fragmentShader, fsSource);
+            gl.compileShader(fragmentShader);
+
+            var program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                console.log("ERROR INITIALIZING SHADER PROGRAM: " + gl.getProgramInfoLog(program));
+                return false;
+            }
+
+            gl.useProgram(program);
+            gl.program = program;
+
+            return true;
+        }
+    </script>
+</body>
+</html>
